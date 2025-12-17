@@ -1,0 +1,5 @@
+{
+  "name": "IPS QR Generator",
+  "description": "A production-ready generator for National Bank of Serbia (NBS) IPS QR codes with real-time validation and Serbian localization.",
+  "requestFramePermissions": []
+}
