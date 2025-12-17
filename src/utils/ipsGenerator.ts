@@ -1,4 +1,4 @@
-import { PaymentData } from '../types';
+import { PaymentData } from '@/types';
 
 const cyrillicToLatinMap: Record<string, string> = {
   'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'ђ': 'đ',
@@ -32,13 +32,20 @@ export const formatBankAccount = (account: string): string => {
 };
 
 export const formatAmount = (amount: string): string => {
-  // Replace comma with dot for parsing
-  const cleanAmount = amount.replace(',', '.');
+  // Replace comma with dot for parsing, remove any existing dots (thousand separators)
+  const cleanAmount = amount.replace(/\./g, '').replace(',', '.');
   const num = parseFloat(cleanAmount);
   if (isNaN(num)) return '0,00';
-  
-  // Format with 2 decimals and use comma separator
-  return num.toFixed(2).replace('.', ',');
+
+  // Format with 2 decimals
+  const formatted = num.toFixed(2);
+  const [integerPart, decimalPart] = formatted.split('.');
+
+  // Add thousand separators (dots) to integer part
+  const withThousands = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  // Return with comma as decimal separator
+  return `${withThousands},${decimalPart}`;
 };
 
 export const formatPaymentCode = (code: string): string => {
