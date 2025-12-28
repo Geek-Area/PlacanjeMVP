@@ -1,5 +1,5 @@
 {
-  "name": "ips-qr-generator",
+  "name": "placanje-rs",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,10 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dom-to-image-more": "^3.7.2",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.561.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "react-hot-toast": "^2.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
