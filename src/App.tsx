@@ -37,18 +37,76 @@ const App: React.FC = () => {
 
   const [qrString, setQrString] = useState<string | null>(null);
 
-  // Validate if QR code is truly valid
-  const isQRValid = () => {
-    if (!qrString) return false;
+  // Validate if QR code is truly valid and return validation status
+  const getValidationStatus = () => {
+    // If no input yet, return waiting status
+    if (!formData.receiverAccount && !formData.receiverName && !formData.purpose && !formData.amount) {
+      return {
+        isValid: false,
+        showError: false,
+        icon: "waiting",
+        message: "Čeka se unos podataka...",
+      };
+    }
 
-    // Check if receiver account has exactly 18 digits
+    // Check receiver account (must be exactly 18 digits)
     const cleanAccount = formData.receiverAccount.replace(/[^0-9]/g, "");
-    if (cleanAccount.length !== 18) return false;
+    if (cleanAccount.length > 0 && cleanAccount.length !== 18) {
+      return {
+        isValid: false,
+        showError: true,
+        icon: "error",
+        message: "Račun primaoca mora imati tačno 18 cifara",
+      };
+    }
 
-    // Check if amount and receiver name are filled
-    if (!formData.amount || !formData.receiverName) return false;
+    // Check receiver name
+    if (!formData.receiverName || formData.receiverName.trim() === "") {
+      return {
+        isValid: false,
+        showError: true,
+        icon: "error",
+        message: "Naziv primaoca nije popunjen",
+      };
+    }
 
-    return true;
+    // Check payment purpose
+    if (!formData.purpose || formData.purpose.trim() === "") {
+      return {
+        isValid: false,
+        showError: true,
+        icon: "error",
+        message: "Svrha uplate nije unešena",
+      };
+    }
+
+    // Check if account is complete (18 digits)
+    if (cleanAccount.length !== 18) {
+      return {
+        isValid: false,
+        showError: true,
+        icon: "error",
+        message: "Račun primaoca mora imati tačno 18 cifara",
+      };
+    }
+
+    // Check if amount is filled
+    if (!formData.amount) {
+      return {
+        isValid: false,
+        showError: true,
+        icon: "error",
+        message: "Iznos nije unet",
+      };
+    }
+
+    // All validations passed
+    return {
+      isValid: true,
+      showError: false,
+      icon: "success",
+      message: "IPS QR kod je validan",
+    };
   };
 
   // Real-time generation
@@ -97,6 +155,34 @@ const App: React.FC = () => {
     return decimalPart !== undefined
       ? `${formatted},${decimalPart}`
       : formatted;
+  };
+
+  const handleAccountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Remove all non-digit characters (dashes, spaces, etc.)
+    const cleaned = value.replace(/[^0-9]/g, "");
+    // Store only digits (max 18)
+    setFormData((prev) => ({
+      ...prev,
+      receiverAccount: cleaned.substring(0, 18),
+    }));
+  };
+
+  const getFormattedAccountDisplay = () => {
+    const account = formData.receiverAccount;
+    if (!account) return "";
+
+    // Remove any non-digits
+    const cleaned = account.replace(/[^0-9]/g, "");
+
+    // Format as XXX-XXXXXXXXXXXXX-XX
+    if (cleaned.length <= 3) {
+      return cleaned;
+    } else if (cleaned.length <= 16) {
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+    } else {
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 16)}-${cleaned.slice(16)}`;
+    }
   };
 
   const handleDownload = () => {
@@ -279,11 +365,13 @@ const App: React.FC = () => {
                   </div>
                   <input
                     name="receiverAccount"
-                    value={formData.receiverAccount}
-                    onChange={handleInputChange}
+                    type="text"
+                    inputMode="numeric"
+                    value={getFormattedAccountDisplay()}
+                    onChange={handleAccountChange}
                     className={`${inputClass} pl-10 font-mono tracking-wide`}
                     placeholder="XXX-XXXXXXXXXXXXXXX-XX"
-                    maxLength={20}
+                    maxLength={21}
                   />
                 </div>
                 <p className="text-[10px] text-gray-400 mt-1">
@@ -395,22 +483,31 @@ const App: React.FC = () => {
               )}
             </div>
             <p className="mt-6 text-sm text-blue-200 flex items-center gap-2">
-              {!qrString ? (
-                <>
-                  <CheckCircle2 size={16} className="text-gray-500" />
-                  <span>Čeka se unos podataka...</span>
-                </>
-              ) : isQRValid() ? (
-                <>
-                  <CheckCircle2 size={16} className="text-green-400" />
-                  <span>IPS QR kod je validan</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle size={16} className="text-yellow-400" />
-                  <span>Unos nije kompletan (račun mora imati 18 cifara)</span>
-                </>
-              )}
+              {(() => {
+                const validation = getValidationStatus();
+                if (validation.icon === "waiting") {
+                  return (
+                    <>
+                      <CheckCircle2 size={16} className="text-gray-500" />
+                      <span>{validation.message}</span>
+                    </>
+                  );
+                } else if (validation.icon === "success") {
+                  return (
+                    <>
+                      <CheckCircle2 size={16} className="text-green-400" />
+                      <span>{validation.message}</span>
+                    </>
+                  );
+                } else {
+                  return (
+                    <>
+                      <AlertCircle size={16} className="text-red-500" />
+                      <span className="text-red-300">{validation.message}</span>
+                    </>
+                  );
+                }
+              })()}
             </p>
           </div>
 
@@ -418,10 +515,10 @@ const App: React.FC = () => {
           <div className="relative z-10 mt-8">
             <button
               onClick={handleDownload}
-              disabled={!isQRValid()}
+              disabled={!getValidationStatus().isValid}
               className={`w-full py-4 rounded-xl font-bold text-blue-900 transition-all flex items-center justify-center gap-2 shadow-lg
                   ${
-                    isQRValid()
+                    getValidationStatus().isValid
                       ? "bg-white hover:bg-blue-50 active:scale-95 cursor-pointer"
                       : "bg-gray-300 text-gray-500 cursor-not-allowed"
                   }`}
