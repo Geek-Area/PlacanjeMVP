@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import App from '@/App';
+import ShareView from '@/components/ShareView';
 import '@/index.css';
 
 const rootElement = document.getElementById('root');
@@ -11,6 +13,11 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<App />} />
+        <Route path="/share/:shareId" element={<ShareView />} />
+      </Routes>
+    </BrowserRouter>
   </React.StrictMode>
 );

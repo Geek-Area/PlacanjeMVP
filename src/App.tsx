@@ -10,6 +10,7 @@ import {
   formatBankAccount,
 } from "@/utils/ipsGenerator";
 import PaymentSlip from "@/components/PaymentSlip";
+import { saveSharedSlip } from "@/supabase/shareUtils";
 import {
   CreditCard,
   CheckCircle2,
@@ -366,12 +367,42 @@ const App: React.FC = () => {
     }
   };
 
-  const handleShare = () => {
-    toast('Kopirano! (funkcija uskoro dostupna)', {
-      icon: '📋',
-      duration: 2000,
-      position: 'bottom-center',
-    });
+  const handleShare = async () => {
+    const validation = getValidationStatus();
+    if (!validation.isValid) {
+      toast.error('Popunite sve obavezne podatke pre deljenja', {
+        duration: 2000,
+        position: 'bottom-center',
+      });
+      return;
+    }
+
+    try {
+      toast.loading('Kreiranje linka za deljenje...', {
+        duration: 1000,
+        position: 'bottom-center',
+      });
+
+      // Save to Supabase
+      const shareId = await saveSharedSlip(formData, qrString);
+
+      // Generate share URL
+      const shareUrl = `${window.location.origin}/share/${shareId}`;
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(shareUrl);
+
+      toast.success('Link kopiran u clipboard!', {
+        duration: 3000,
+        position: 'bottom-center',
+      });
+    } catch (error) {
+      console.error('Share error:', error);
+      toast.error('Greška pri kreiranju linka', {
+        duration: 2000,
+        position: 'bottom-center',
+      });
+    }
   };
 
   // Helper for input classes to keep JSX clean
