@@ -389,8 +389,28 @@ const App: React.FC = () => {
       // Generate share URL
       const shareUrl = `${window.location.origin}/share/${shareId}`;
 
-      // Copy to clipboard
-      await navigator.clipboard.writeText(shareUrl);
+      // Copy to clipboard with fallback for non-HTTPS contexts
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shareUrl);
+        } else {
+          // Fallback for browsers/contexts without clipboard API
+          const textArea = document.createElement('textarea');
+          textArea.value = shareUrl;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          textArea.style.top = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+        }
+      } catch (clipboardError) {
+        console.error('Clipboard error:', clipboardError);
+        // Still show the link even if clipboard fails
+        alert(`Link: ${shareUrl}\n\nKopirajte link ručno.`);
+      }
 
       toast.success('Link kopiran u clipboard!', {
         duration: 3000,

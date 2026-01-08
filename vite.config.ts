@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // Enable client-side routing fallback for dev server
+        historyApiFallback: true,
+      },
+      preview: {
+        // Also enable for preview mode
+        historyApiFallback: true,
       },
       plugins: [react()],
       define: {
