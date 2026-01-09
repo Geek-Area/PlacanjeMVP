@@ -52,6 +52,7 @@ const App: React.FC = () => {
 
   const [qrString, setQrString] = useState<string | null>(null);
   const [savedSlips, setSavedSlips] = useState<SavedSlip[]>([]);
+  const [isFormattingAccount, setIsFormattingAccount] = useState(false);
 
   // Save current payment slip to history
   const handleSaveSlip = () => {
@@ -224,6 +225,64 @@ const App: React.FC = () => {
       ...prev,
       receiverAccount: cleaned.substring(0, 18),
     }));
+  };
+
+  const autoFormatAccount = async () => {
+    const account = formData.receiverAccount;
+    if (!account || account.length === 0) return;
+
+    // Remove any non-digits
+    const cleaned = account.replace(/[^0-9]/g, "");
+
+    // Only format if we have at least 5 digits (XXX + some middle digits)
+    if (cleaned.length < 5) return;
+
+    // If already 18 digits, no need to format
+    if (cleaned.length === 18) return;
+
+    setIsFormattingAccount(true);
+
+    // Simulate a brief validation delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Extract parts: first 3 (bank code), middle (account), last 2 (check digit)
+    const firstPart = cleaned.substring(0, 3); // Bank code (XXX)
+    let middlePart = "";
+    let lastPart = "";
+
+    // Determine if last 2 digits are the check digit
+    // If user entered 10+ digits, assume last 2 are check digit
+    if (cleaned.length >= 10) {
+      lastPart = cleaned.substring(cleaned.length - 2);
+      middlePart = cleaned.substring(3, cleaned.length - 2);
+    } else {
+      // Less than 10 digits, no check digit yet
+      middlePart = cleaned.substring(3);
+      lastPart = "";
+    }
+
+    // Pad middle part with zeros to make it 13 digits
+    const paddedMiddle = middlePart.padStart(13, "0");
+
+    // Construct the full account (18 digits if check digit present)
+    let formatted = firstPart + paddedMiddle;
+    if (lastPart) {
+      formatted += lastPart;
+    }
+
+    // Update formData with the formatted account
+    setFormData((prev) => ({
+      ...prev,
+      receiverAccount: formatted,
+    }));
+
+    setIsFormattingAccount(false);
+
+    // Show success toast
+    toast.success('Račun automatski formatiran', {
+      duration: 1500,
+      position: 'bottom-center',
+    });
   };
 
   const getFormattedAccountDisplay = () => {
@@ -587,10 +646,21 @@ const App: React.FC = () => {
                       inputMode="numeric"
                       value={getFormattedAccountDisplay()}
                       onChange={handleAccountChange}
-                      className={`${inputClass} pl-10 font-mono tracking-wide`}
+                      onBlur={autoFormatAccount}
+                      className={`${inputClass} pl-10 pr-10 font-mono tracking-wide`}
                       placeholder="XXX-XXXXXXXXXXXXXXX-XX"
                       maxLength={21}
                     />
+                    {isFormattingAccount && (
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <RefreshCw size={16} className="text-blue-600 animate-spin" />
+                      </div>
+                    )}
+                    {!isFormattingAccount && formData.receiverAccount.length === 18 && (
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <CheckCircle2 size={16} className="text-green-600" />
+                      </div>
+                    )}
                   </div>
                   <p className="text-[10px] text-gray-400 mt-1">
                     Unesite račun sa ili bez crtica (18 cifara)

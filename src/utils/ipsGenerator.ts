@@ -48,6 +48,21 @@ export const formatAmount = (amount: string): string => {
   return `${withThousands},${decimalPart}`;
 };
 
+// Format amount for QR code - NO thousand separators (NBS IPS requirement)
+export const formatAmountForQR = (amount: string): string => {
+  // Replace comma with dot for parsing, remove any existing dots (thousand separators)
+  const cleanAmount = amount.replace(/\./g, '').replace(',', '.');
+  const num = parseFloat(cleanAmount);
+  if (isNaN(num)) return '0,00';
+
+  // Format with 2 decimals
+  const formatted = num.toFixed(2);
+  const [integerPart, decimalPart] = formatted.split('.');
+
+  // NO thousand separators for QR code - just comma as decimal separator
+  return `${integerPart},${decimalPart}`;
+};
+
 export const formatPaymentCode = (code: string): string => {
   const originalCode = parseInt(code) || 189;
   // NBS standard requires adding 100 to the code (e.g. 189 -> 289)
@@ -96,30 +111,42 @@ export const generateIPSString = (data: PaymentData): string | null => {
   if (data.receiverCity) receiverStr += '\n' + transliterate(data.receiverCity);
   receiverStr = receiverStr.substring(0, 70);
 
-  const formattedAmount = formatAmount(data.amount);
-  
-  // Payer formatting
-  let payerStr = transliterate(data.payerName);
-  if (data.payerAddress) payerStr += '\n' + transliterate(data.payerAddress);
-  if (data.payerCity) payerStr += '\n' + transliterate(data.payerCity);
-  payerStr = payerStr.substring(0, 70);
+  // Use formatAmountForQR for QR code (no thousand separators)
+  const formattedAmount = formatAmountForQR(data.amount);
+
+  // Payer formatting (optional)
+  let payerStr = '';
+  if (data.payerName && data.payerName.trim()) {
+    payerStr = transliterate(data.payerName);
+    if (data.payerAddress) payerStr += '\n' + transliterate(data.payerAddress);
+    if (data.payerCity) payerStr += '\n' + transliterate(data.payerCity);
+    payerStr = payerStr.substring(0, 70);
+  }
 
   const code = formatPaymentCode(data.paymentCode);
   const purpose = transliterate(data.purpose).substring(0, 35);
   const currency = data.currency || 'RSD';
 
-  // Base String
-  let qrString = `K:PR|V:01|C:1|R:${account}|N:${receiverStr}|I:${currency}${formattedAmount}|P:${payerStr}|SF:${code}|S:${purpose}`;
+  // Base String - mandatory fields
+  let qrString = `K:PR|V:01|C:1|R:${account}|N:${receiverStr}|I:${currency}${formattedAmount}`;
+
+  // Add payer only if not empty
+  if (payerStr) {
+    qrString += `|P:${payerStr}`;
+  }
+
+  // Add payment code and purpose
+  qrString += `|SF:${code}|S:${purpose}`;
 
   // Optional Reference
   if (data.reference && data.reference.trim()) {
     const modelPrefix = data.model === '97' ? '97' : (data.model || '00');
     let formattedReference = data.reference.trim();
-    
+
     if (data.model === '97') {
        formattedReference = calculateModel97(formattedReference);
     }
-    
+
     qrString += `|RO:${modelPrefix}${formattedReference}`;
   }
 
