@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import App from '@/App';
 import ShareView from '@/components/ShareView';
 import '@/index.css';
@@ -19,5 +20,6 @@ root.render(
         <Route path="/share/:shareId" element={<ShareView />} />
       </Routes>
     </BrowserRouter>
+    <Analytics />
   </React.StrictMode>
 );
