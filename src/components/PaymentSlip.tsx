@@ -1,14 +1,14 @@
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { PaymentData } from '@/types';
+import { PaymentData, FormType } from '@/types';
 
 interface PaymentSlipProps {
   data: PaymentData;
   qrString: string | null;
+  formType?: FormType;
 }
 
-const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
-  // Format account number for display
+const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'uplata' }) => {
   const formatAccountDisplay = (account: string) => {
     if (!account) return '';
     const cleaned = account.replace(/[^0-9]/g, '');
@@ -17,7 +17,6 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
     return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 16)}-${cleaned.slice(16)}`;
   };
 
-  // Format amount for display
   const formatAmountDisplay = (amount: string) => {
     if (!amount) return '';
     const num = parseFloat(amount.replace(/\./g, '').replace(',', '.'));
@@ -28,6 +27,8 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
     });
   };
 
+  const isPrenos = formType === 'prenos';
+
   return (
     <div id="payment-slip" style={{ width: '100%', display: 'flex', justifyContent: 'center', overflow: 'visible' }}>
       <style>{`
@@ -36,88 +37,22 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
           width: 680px;
           transition: transform 0.2s ease;
         }
-
-        /* Continuous responsive scaling - desktop to mobile */
-        @media (max-width: 1400px) {
-          #payment-slip-wrapper {
-            transform: scale(0.95);
-          }
-        }
-        @media (max-width: 1280px) {
-          #payment-slip-wrapper {
-            transform: scale(0.90);
-          }
-        }
-        @media (max-width: 1150px) {
-          #payment-slip-wrapper {
-            transform: scale(0.85);
-          }
-        }
-        @media (max-width: 1024px) {
-          #payment-slip-wrapper {
-            transform: scale(0.80);
-          }
-        }
-        @media (max-width: 900px) {
-          #payment-slip-wrapper {
-            transform: scale(0.75);
-          }
-        }
-        @media (max-width: 800px) {
-          #payment-slip-wrapper {
-            transform: scale(0.70);
-          }
-        }
-        @media (max-width: 768px) {
-          #payment-slip-wrapper {
-            transform: scale(0.95);
-          }
-        }
-        @media (max-width: 700px) {
-          #payment-slip-wrapper {
-            transform: scale(0.88);
-          }
-        }
-        @media (max-width: 650px) {
-          #payment-slip-wrapper {
-            transform: scale(0.82);
-          }
-        }
-        @media (max-width: 600px) {
-          #payment-slip-wrapper {
-            transform: scale(0.76);
-          }
-        }
-        @media (max-width: 550px) {
-          #payment-slip-wrapper {
-            transform: scale(0.70);
-          }
-        }
-        @media (max-width: 500px) {
-          #payment-slip-wrapper {
-            transform: scale(0.64);
-          }
-        }
-        @media (max-width: 450px) {
-          #payment-slip-wrapper {
-            transform: scale(0.58);
-          }
-        }
-        @media (max-width: 420px) {
-          #payment-slip-wrapper {
-            transform: scale(0.54);
-          }
-        }
-        @media (max-width: 390px) {
-          #payment-slip-wrapper {
-            transform: scale(0.50);
-          }
-        }
-        @media (max-width: 360px) {
-          #payment-slip-wrapper {
-            transform: scale(0.46);
-          }
-        }
+        @media (max-width: 1400px) { #payment-slip-wrapper { transform: scale(0.95); } }
+        @media (max-width: 1280px) { #payment-slip-wrapper { transform: scale(0.90); } }
+        @media (max-width: 1150px) { #payment-slip-wrapper { transform: scale(0.85); } }
+        @media (max-width: 1024px) { #payment-slip-wrapper { transform: scale(0.80); } }
+        @media (max-width: 900px) { #payment-slip-wrapper { transform: scale(0.75); } }
+        @media (max-width: 800px) { #payment-slip-wrapper { transform: scale(0.70); } }
+        @media (max-width: 768px) { #payment-slip-wrapper { transform: scale(0.95); } }
+        @media (max-width: 700px) { #payment-slip-wrapper { transform: scale(0.88); } }
+        @media (max-width: 650px) { #payment-slip-wrapper { transform: scale(0.82); } }
+        @media (max-width: 600px) { #payment-slip-wrapper { transform: scale(0.76); } }
+        @media (max-width: 550px) { #payment-slip-wrapper { transform: scale(0.70); } }
+        @media (max-width: 500px) { #payment-slip-wrapper { transform: scale(0.64); } }
+        @media (max-width: 450px) { #payment-slip-wrapper { transform: scale(0.58); } }
+        @media (max-width: 420px) { #payment-slip-wrapper { transform: scale(0.54); } }
+        @media (max-width: 390px) { #payment-slip-wrapper { transform: scale(0.50); } }
+        @media (max-width: 360px) { #payment-slip-wrapper { transform: scale(0.46); } }
         body {
           font-family: Arial, sans-serif;
           display: flex;
@@ -125,15 +60,9 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
           justify-content: center;
           margin: 0;
         }
-        input, textarea {
-          font-size: 12px;
-        }
-        input {
-          border: 2px solid #000;
-        }
-        textarea {
-          border: 1px solid #000;
-        }
+        input, textarea { font-size: 12px; }
+        input { border: 2px solid #000; }
+        textarea { border: 1px solid #000; }
         .container {
           margin-top: 20px;
           width: 680px;
@@ -145,9 +74,7 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
           display: flex;
           justify-content: space-between;
         }
-        .left, .right {
-          flex: 1;
-        }
+        .left, .right { flex: 1; }
         .left {
           padding-right: 20px;
           position: relative;
@@ -169,9 +96,7 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
           display: flex;
           flex-direction: column;
         }
-        .form-group {
-          margin-bottom: 2px;
-        }
+        .form-group { margin-bottom: 2px; }
         .form-group label {
           display: block;
           margin-bottom: 2px;
@@ -183,16 +108,9 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
           padding: 2px;
           box-sizing: border-box;
         }
-        .form-group textarea {
-          resize: none;
-        }
-        .form-group small {
-          display: block;
-          margin-top: 5px;
-        }
-        .right .form-group {
-          margin-bottom: 8px;
-        }
+        .form-group textarea { resize: none; }
+        .form-group small { display: block; margin-top: 5px; }
+        .right .form-group { margin-bottom: 8px; }
         .title {
           text-align: right;
           font-weight: bold;
@@ -211,7 +129,7 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
           justify-content: space-between;
           margin-top: 30px;
         }
-        .pp, .mdp, .dv {
+        .pp, .mdp, .dv, .di, .hitno {
           font-size: 10px;
           border-top: 1px solid #000;
           padding-top: 2px;
@@ -227,40 +145,40 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
           margin-top: auto;
           flex: 4;
         }
-        .sifra-placanja {
-          flex: 1;
-        }
-        .valuta {
-          flex: 1;
-        }
-        .iznos {
-          flex: 3;
-        }
+        .sifra-placanja { flex: 1; }
+        .valuta { flex: 1; }
+        .iznos { flex: 3; }
         .model-poziv, .dv-ips {
           display: flex;
           flex-direction: row;
           gap: 10px;
           align-items: end;
         }
-        .broj-modela {
-          flex: 1;
+        .broj-modela { flex: 1; }
+        .poziv { flex: 4; }
+        .ips { flex: 4; text-align: right; }
+        .prenos-footer {
+          display: flex;
+          gap: 10px;
+          align-items: end;
+          margin-top: auto;
         }
-        .poziv {
-          flex: 4;
-        }
-        .ips {
-          flex: 4;
-          text-align: right;
+        .prenos-footer > div {
+          font-size: 10px;
+          border-top: 1px solid #000;
+          padding-top: 2px;
+          text-align: center;
+          margin-top: 16px;
         }
       `}</style>
 
       <div id="payment-slip-wrapper">
         <div className="container">
-          <div className="title">НАЛОГ ЗА УПЛАТУ</div>
+          <div className="title">{isPrenos ? 'НАЛОГ ЗА ПРЕНОС' : 'НАЛОГ ЗА УПЛАТУ'}</div>
           <div className="columns">
             <div className="left">
               <div className="form-group">
-                <label htmlFor="uplatilac">уплатилац</label>
+                <label htmlFor="uplatilac">платилац</label>
                 <textarea
                   id="uplatilac"
                   name="uplatilac"
@@ -271,7 +189,7 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="svrha">сврха уплате</label>
+                <label htmlFor="svrha">сврха плаћања</label>
                 <textarea
                   id="svrha"
                   name="svrha"
@@ -292,12 +210,20 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
                   readOnly
                 />
               </div>
-              <div className="pp">
-                печат и потпис уплатиоца
-              </div>
-              <div className="mdp">
-                место и датум пријема
-              </div>
+              {isPrenos ? (
+                <div className="pp">
+                  печат и потпис платиоца/примаоца
+                </div>
+              ) : (
+                <>
+                  <div className="pp">
+                    печат и потпис уплатиоца
+                  </div>
+                  <div className="mdp">
+                    место и датум пријема
+                  </div>
+                </>
+              )}
             </div>
             <div className="right">
               <div className="sifra-iznos">
@@ -335,49 +261,132 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString }) => {
                   />
                 </div>
               </div>
-              <div className="form-group">
-                <label htmlFor="racun">рачун примаоца</label>
-                <input
-                  type="text"
-                  id="racun"
-                  name="racun"
-                  value={formatAccountDisplay(data.receiverAccount)}
-                  disabled
-                  readOnly
-                />
-              </div>
-              <div className="model-poziv">
-                <div className="form-group broj-modela">
-                  <label htmlFor="broj-modela">модел</label>
-                  <input
-                    type="text"
-                    id="broj-modela"
-                    name="broj-modela"
-                    value={data.model}
-                    disabled
-                    readOnly
-                  />
-                </div>
-                <div className="form-group poziv">
-                  <label htmlFor="poziv-na-broj">позив на број (одобрење)</label>
-                  <input
-                    type="text"
-                    id="poziv-na-broj"
-                    name="poziv-na-broj"
-                    value={data.reference}
-                    disabled
-                    readOnly
-                  />
-                </div>
-              </div>
-              <div className="dv-ips">
-                <div className="dv">
-                  датум валуте
-                </div>
-                <div className="ips">
-                  {qrString && <QRCodeSVG value={qrString} size={110} level="M" />}
-                </div>
-              </div>
+
+              {isPrenos ? (
+                <>
+                  <div className="form-group">
+                    <label htmlFor="racun-platioca">рачун платиоца</label>
+                    <input
+                      type="text"
+                      id="racun-platioca"
+                      name="racun-platioca"
+                      value={formatAccountDisplay(data.payerAccount)}
+                      disabled
+                      readOnly
+                    />
+                  </div>
+                  <div className="model-poziv">
+                    <div className="form-group broj-modela">
+                      <label htmlFor="debit-model">модел</label>
+                      <input
+                        type="text"
+                        id="debit-model"
+                        name="debit-model"
+                        value={data.debitModel}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                    <div className="form-group poziv">
+                      <label htmlFor="debit-poziv">позив на број (задужење)</label>
+                      <input
+                        type="text"
+                        id="debit-poziv"
+                        name="debit-poziv"
+                        value={data.debitReference}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="racun-primaoca">рачун примаоца</label>
+                    <input
+                      type="text"
+                      id="racun-primaoca"
+                      name="racun-primaoca"
+                      value={formatAccountDisplay(data.receiverAccount)}
+                      disabled
+                      readOnly
+                    />
+                  </div>
+                  <div className="model-poziv">
+                    <div className="form-group broj-modela">
+                      <label htmlFor="credit-model">модел</label>
+                      <input
+                        type="text"
+                        id="credit-model"
+                        name="credit-model"
+                        value={data.model}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                    <div className="form-group poziv">
+                      <label htmlFor="credit-poziv">позив на број (одобрење)</label>
+                      <input
+                        type="text"
+                        id="credit-poziv"
+                        name="credit-poziv"
+                        value={data.reference}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                  <div className="prenos-footer">
+                    <div style={{ flex: 3 }}>место и датум пријема</div>
+                    <div style={{ flex: 3 }}>датум извршења</div>
+                    <div style={{ flex: 1 }}>хитно</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label htmlFor="racun">рачун примаоца</label>
+                    <input
+                      type="text"
+                      id="racun"
+                      name="racun"
+                      value={formatAccountDisplay(data.receiverAccount)}
+                      disabled
+                      readOnly
+                    />
+                  </div>
+                  <div className="model-poziv">
+                    <div className="form-group broj-modela">
+                      <label htmlFor="broj-modela">модел</label>
+                      <input
+                        type="text"
+                        id="broj-modela"
+                        name="broj-modela"
+                        value={data.model}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                    <div className="form-group poziv">
+                      <label htmlFor="poziv-na-broj">позив на број (одобрење)</label>
+                      <input
+                        type="text"
+                        id="poziv-na-broj"
+                        name="poziv-na-broj"
+                        value={data.reference}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                  <div className="dv-ips">
+                    <div className="dv">
+                      датум валуте
+                    </div>
+                    <div className="ips">
+                      {qrString && <QRCodeSVG value={qrString} size={110} level="M" />}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -3,11 +3,12 @@ import { QRCodeSVG } from "qrcode.react";
 import { Toaster, toast } from 'react-hot-toast';
 import html2canvas from 'html2canvas';
 import domtoimage from 'dom-to-image-more';
-import { PaymentData } from "@/types";
+import { PaymentData, FormType } from "@/types";
 import {
   generateIPSString,
   formatAmount,
   formatBankAccount,
+  validateModel97,
 } from "@/utils/ipsGenerator";
 import PaymentSlip from "@/components/PaymentSlip";
 import { saveSharedSlip } from "@/supabase/shareUtils";
@@ -25,19 +26,23 @@ import {
   History,
   Plus,
   Trash2,
+  ArrowLeftRight,
 } from "lucide-react";
 
 interface SavedSlip {
   id: string;
   timestamp: Date;
   data: PaymentData;
+  formType: FormType;
 }
 
 const App: React.FC = () => {
+  const [formType, setFormType] = useState<FormType>('uplata');
   const [formData, setFormData] = useState<PaymentData>({
     payerName: "",
     payerAddress: "",
     payerCity: "",
+    payerAccount: "",
     purpose: "",
     receiverName: "",
     receiverAddress: "",
@@ -48,6 +53,8 @@ const App: React.FC = () => {
     amount: "",
     model: "",
     reference: "",
+    debitModel: "",
+    debitReference: "",
   });
 
   const [qrString, setQrString] = useState<string | null>(null);
@@ -69,6 +76,7 @@ const App: React.FC = () => {
       id: Date.now().toString(),
       timestamp: new Date(),
       data: { ...formData },
+      formType,
     };
 
     setSavedSlips((prev) => [newSlip, ...prev]);
@@ -81,6 +89,7 @@ const App: React.FC = () => {
   // Load a saved slip
   const handleLoadSlip = (slip: SavedSlip) => {
     setFormData(slip.data);
+    setFormType(slip.formType || 'uplata');
     toast.success('Uplatnica učitana!', {
       duration: 1500,
       position: 'bottom-center',
@@ -129,16 +138,6 @@ const App: React.FC = () => {
       };
     }
 
-    // Check payment purpose
-    if (!formData.purpose || formData.purpose.trim() === "") {
-      return {
-        isValid: false,
-        showError: true,
-        icon: "error",
-        message: "Svrha uplate nije unešena",
-      };
-    }
-
     // Check if account is complete (18 digits)
     if (cleanAccount.length !== 18) {
       return {
@@ -164,7 +163,7 @@ const App: React.FC = () => {
       isValid: true,
       showError: false,
       icon: "success",
-      message: "IPS QR kod je validan",
+      message: "NBS IPS QR kod je validan",
     };
   };
 
@@ -231,46 +230,28 @@ const App: React.FC = () => {
     const account = formData.receiverAccount;
     if (!account || account.length === 0) return;
 
-    // Remove any non-digits
     const cleaned = account.replace(/[^0-9]/g, "");
 
-    // Only format if we have at least 5 digits (XXX + some middle digits)
-    if (cleaned.length < 5) return;
+    // Need at least 6 digits: 3 (bank) + 1 (account) + 2 (check)
+    if (cleaned.length < 6) return;
 
     // If already 18 digits, no need to format
     if (cleaned.length === 18) return;
 
     setIsFormattingAccount(true);
-
-    // Simulate a brief validation delay
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    // Extract parts: first 3 (bank code), middle (account), last 2 (check digit)
-    const firstPart = cleaned.substring(0, 3); // Bank code (XXX)
-    let middlePart = "";
-    let lastPart = "";
+    // Serbian bank account format: XXX-AAAAAAAAAAAAA-CC (3 + 13 + 2 = 18)
+    // Always treat first 3 as bank code and last 2 as check digit
+    const bankCode = cleaned.substring(0, 3);
+    const checkDigit = cleaned.substring(cleaned.length - 2);
+    const middlePart = cleaned.substring(3, cleaned.length - 2);
 
-    // Determine if last 2 digits are the check digit
-    // If user entered 10+ digits, assume last 2 are check digit
-    if (cleaned.length >= 10) {
-      lastPart = cleaned.substring(cleaned.length - 2);
-      middlePart = cleaned.substring(3, cleaned.length - 2);
-    } else {
-      // Less than 10 digits, no check digit yet
-      middlePart = cleaned.substring(3);
-      lastPart = "";
-    }
-
-    // Pad middle part with zeros to make it 13 digits
+    // Pad middle with leading zeros to 13 digits
     const paddedMiddle = middlePart.padStart(13, "0");
 
-    // Construct the full account (18 digits if check digit present)
-    let formatted = firstPart + paddedMiddle;
-    if (lastPart) {
-      formatted += lastPart;
-    }
+    const formatted = bankCode + paddedMiddle + checkDigit;
 
-    // Update formData with the formatted account
     setFormData((prev) => ({
       ...prev,
       receiverAccount: formatted,
@@ -278,7 +259,6 @@ const App: React.FC = () => {
 
     setIsFormattingAccount(false);
 
-    // Show success toast
     toast.success('Račun automatski formatiran', {
       duration: 1500,
       position: 'bottom-center',
@@ -502,14 +482,41 @@ const App: React.FC = () => {
           {/* Form Section - 75% */}
           <div className="w-full lg:w-3/4 bg-white rounded-2xl shadow-lg p-6 lg:p-8">
             <div className="mb-8">
-              <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                <span className="p-2 bg-blue-100 text-blue-600 rounded-xl">
-                  <FileText size={24} />
-                </span>
-                Nalog za uplatu
-              </h1>
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                  <span className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                    <FileText size={24} />
+                  </span>
+                  {formType === 'uplata' ? 'Nalog za uplatu' : 'Nalog za prenos'}
+                </h1>
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setFormType('uplata')}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                      formType === 'uplata'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Uplata
+                  </button>
+                  <button
+                    onClick={() => setFormType('prenos')}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${
+                      formType === 'prenos'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <ArrowLeftRight size={14} />
+                    Prenos
+                  </button>
+                </div>
+              </div>
               <p className="text-gray-400 text-sm mt-1 ml-14">
-                Popunite podatke o plaćanju da biste generisali NBS IPS kod.
+                {formType === 'uplata'
+                  ? 'Popunite podatke o plaćanju da biste generisali NBS IPS QR kod.'
+                  : 'Popunite podatke za prenos sredstava između računa.'}
               </p>
             </div>
 
@@ -529,6 +536,7 @@ const App: React.FC = () => {
                       onChange={handleInputChange}
                       className={inputClass}
                       placeholder="Ime i prezime / Naziv firme"
+                      autoComplete="section-payer name"
                     />
                     <input
                       name="payerAddress"
@@ -536,6 +544,7 @@ const App: React.FC = () => {
                       onChange={handleInputChange}
                       className={inputClass}
                       placeholder="Adresa (Ulica i broj)"
+                      autoComplete="section-payer address-line1"
                     />
                     <input
                       name="payerCity"
@@ -543,6 +552,7 @@ const App: React.FC = () => {
                       onChange={handleInputChange}
                       className={inputClass}
                       placeholder="Mesto"
+                      autoComplete="section-payer address-level2"
                     />
                   </div>
                 </div>
@@ -556,6 +566,7 @@ const App: React.FC = () => {
                     onChange={handleInputChange}
                     className={`${inputClass} h-20 resize-none`}
                     placeholder="Opis plaćanja (npr. Račun za struju 03/24)"
+                    autoComplete="off"
                   />
                 </div>
 
@@ -572,6 +583,7 @@ const App: React.FC = () => {
                       onChange={handleInputChange}
                       className={inputClass}
                       placeholder="Naziv primaoca"
+                      autoComplete="section-receiver organization"
                     />
                     <input
                       name="receiverAddress"
@@ -579,6 +591,7 @@ const App: React.FC = () => {
                       onChange={handleInputChange}
                       className={inputClass}
                       placeholder="Adresa primaoca"
+                      autoComplete="section-receiver address-line1"
                     />
                     <input
                       name="receiverCity"
@@ -586,6 +599,7 @@ const App: React.FC = () => {
                       onChange={handleInputChange}
                       className={inputClass}
                       placeholder="Mesto primaoca"
+                      autoComplete="section-receiver address-level2"
                     />
                   </div>
                 </div>
@@ -603,6 +617,7 @@ const App: React.FC = () => {
                       onChange={handleInputChange}
                       className={`${inputClass} text-center font-mono`}
                       maxLength={3}
+                      autoComplete="off"
                     />
                   </div>
                   <div className="col-span-3">
@@ -633,7 +648,71 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Account Number */}
+                {/* Payer Account - only for Prenos */}
+                {formType === 'prenos' && (
+                  <div>
+                    <label className={labelClass}>Račun uplatioca</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Wallet size={16} className="text-gray-400" />
+                      </div>
+                      <input
+                        name="payerAccount"
+                        type="text"
+                        inputMode="numeric"
+                        value={(() => {
+                          const acc = formData.payerAccount;
+                          if (!acc) return "";
+                          const c = acc.replace(/[^0-9]/g, "");
+                          if (c.length <= 3) return c;
+                          if (c.length <= 16) return `${c.slice(0, 3)}-${c.slice(3)}`;
+                          return `${c.slice(0, 3)}-${c.slice(3, 16)}-${c.slice(16)}`;
+                        })()}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/[^0-9]/g, "");
+                          setFormData((prev) => ({ ...prev, payerAccount: cleaned.substring(0, 18) }));
+                        }}
+                        className={`${inputClass} pl-10 font-mono tracking-wide`}
+                        placeholder="XXX-XXXXXXXXXXXXXXX-XX"
+                        maxLength={21}
+                        autoComplete="on"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Debit Model and Reference - only for Prenos */}
+                {formType === 'prenos' && (
+                  <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-3">
+                      <label className={labelClass}>Model</label>
+                      <input
+                        name="debitModel"
+                        value={formData.debitModel}
+                        onChange={handleInputChange}
+                        className={`${inputClass} text-center font-mono`}
+                        placeholder="97"
+                        maxLength={2}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="col-span-9">
+                      <label className={labelClass}>
+                        Poziv na broj (zaduženje)
+                      </label>
+                      <input
+                        name="debitReference"
+                        value={formData.debitReference}
+                        onChange={handleInputChange}
+                        className={`${inputClass} font-mono`}
+                        placeholder="Poziv na broj"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Receiver Account Number */}
                 <div>
                   <label className={labelClass}>Račun primaoca</label>
                   <div className="relative">
@@ -650,6 +729,7 @@ const App: React.FC = () => {
                       className={`${inputClass} pl-10 pr-10 font-mono tracking-wide`}
                       placeholder="XXX-XXXXXXXXXXXXXXX-XX"
                       maxLength={21}
+                      autoComplete="on"
                     />
                     {isFormattingAccount && (
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -678,31 +758,49 @@ const App: React.FC = () => {
                       className={`${inputClass} text-center font-mono`}
                       placeholder="97"
                       maxLength={2}
+                      autoComplete="off"
                     />
                   </div>
                   <div className="col-span-9">
                     <label className={labelClass}>
                       Poziv na broj (odobrenje)
                     </label>
-                    <input
-                      name="reference"
-                      value={formData.reference}
-                      onChange={handleInputChange}
-                      className={`${inputClass} font-mono`}
-                      placeholder="Referenca plaćanja"
-                    />
+                    <div className="relative">
+                      <input
+                        name="reference"
+                        value={formData.reference}
+                        onChange={handleInputChange}
+                        className={`${inputClass} font-mono pr-10`}
+                        placeholder="Poziv na broj"
+                        autoComplete="off"
+                      />
+                      {formData.model === "97" && formData.reference.length >= 3 && (
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          {validateModel97(formData.reference) ? (
+                            <CheckCircle2 size={16} className="text-green-600" />
+                          ) : (
+                            <AlertCircle size={16} className="text-red-500" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {formData.model === "97" && formData.reference.length >= 3 && !validateModel97(formData.reference) && (
+                      <p className="text-[10px] text-red-500 mt-1">
+                        Kontrolni broj nije ispravan za Model 97
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {/* Helpful tips */}
-                <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 mt-8">
-                  <h4 className="text-yellow-800 text-xs font-bold mb-1 flex items-center gap-2">
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mt-8">
+                  <h4 className="text-blue-800 text-xs font-bold mb-1 flex items-center gap-2">
                     <RefreshCw size={12} />
-                    AUTOMATSKA OBRADA
+                    INFORMACIJE
                   </h4>
-                  <p className="text-yellow-700 text-xs leading-relaxed">
-                    Poziv na broj će automatski biti izračunat ako koristite Model
-                    97. Podaci se automatski formatiraju za NBS IPS standard.
+                  <p className="text-blue-700 text-xs leading-relaxed">
+                    Za Model 97 unesite kompletan poziv na broj uključujući kontrolne cifre.
+                    Podaci se automatski formatiraju za NBS IPS standard.
                   </p>
                 </div>
               </div>
@@ -739,9 +837,16 @@ const App: React.FC = () => {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {slip.data.receiverName || "Bez naziva"}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold text-gray-800 truncate">
+                            {slip.data.receiverName || "Bez naziva"}
+                          </p>
+                          {slip.formType === 'prenos' && (
+                            <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium shrink-0">
+                              PRENOS
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500 mt-1">
                           {slip.data.amount ? formatAmount(slip.data.amount) : "0,00"} RSD
                         </p>
@@ -777,10 +882,10 @@ const App: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
             <FileText size={24} className="text-blue-600" />
-            Uplatnica
+            {formType === 'uplata' ? 'Uplatnica' : 'Nalog za prenos'}
           </h2>
           <div className="bg-gray-50 rounded-xl p-4 flex justify-center">
-            <PaymentSlip data={formData} qrString={qrString} />
+            <PaymentSlip data={formData} qrString={qrString} formType={formType} />
           </div>
         </div>
 
@@ -870,7 +975,7 @@ const App: React.FC = () => {
         {/* QR Code + Validation Status */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">IPS QR Kod</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">NBS IPS QR Kod</h2>
 
             {/* Validation Status */}
             <div className="mb-6">

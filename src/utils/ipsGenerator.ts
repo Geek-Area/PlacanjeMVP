@@ -75,7 +75,9 @@ export const formatPaymentCode = (code: string): string => {
   return (originalCode + 100).toString();
 };
 
-export const calculateModel97 = (reference: string): string => {
+// Validate a complete Model 97 reference number (check digits + reference body)
+// Returns true if the check digits are correct per MOD 97 algorithm
+export const validateModel97 = (fullReference: string): boolean => {
   const letterToNumber: Record<string, number> = {
     'A': 10, 'B': 11, 'C': 12, 'D': 13, 'E': 14, 'F': 15, 'G': 16, 'H': 17,
     'I': 18, 'J': 19, 'K': 20, 'L': 21, 'M': 22, 'N': 23, 'O': 24, 'P': 25,
@@ -83,20 +85,28 @@ export const calculateModel97 = (reference: string): string => {
     'Y': 34, 'Z': 35
   };
 
-  const clean = reference.replace(/[\s-]/g, '').toUpperCase();
-  if (!clean) return '';
+  const clean = fullReference.replace(/[\s-]/g, '').toUpperCase();
+  if (clean.length < 3) return false; // Need at least 2 check digits + 1 char
 
-  const numericString = clean.split('').map(char =>
-    (letterToNumber[char] !== undefined ? letterToNumber[char] : char)
+  const checkDigits = clean.substring(0, 2);
+  const body = clean.substring(2);
+
+  // Check digits must be numeric
+  if (!/^\d{2}$/.test(checkDigits)) return false;
+
+  // Convert body to numeric string (letters → numbers)
+  const numericBody = body.split('').map(char =>
+    (letterToNumber[char] !== undefined ? letterToNumber[char].toString() : char)
   ).join('');
 
-  // We need big integer arithmetic here
+  // Verify: (body * 100 + checkDigits) mod 97 === 1, or equivalently
+  // check that (98 - (body * 100 mod 97)) mod 97 === checkDigits
   try {
-    const numeric = BigInt(numericString);
-    const checkDigit = (98n - (numeric * 100n % 97n)) % 97n;
-    return checkDigit.toString().padStart(2, '0') + clean;
-  } catch (e) {
-    return '00' + clean; // Fallback if invalid chars
+    const numeric = BigInt(numericBody);
+    const expectedCheck = (98n - (numeric * 100n % 97n)) % 97n;
+    return expectedCheck.toString().padStart(2, '0') === checkDigits;
+  } catch {
+    return false;
   }
 };
 
@@ -114,39 +124,25 @@ export const generateIPSString = (data: PaymentData): string | null => {
   // Use formatAmountForQR for QR code (no thousand separators)
   const formattedAmount = formatAmountForQR(data.amount);
 
-  // Payer formatting (optional)
-  let payerStr = '';
-  if (data.payerName && data.payerName.trim()) {
-    payerStr = transliterate(data.payerName);
-    if (data.payerAddress) payerStr += '\n' + transliterate(data.payerAddress);
-    if (data.payerCity) payerStr += '\n' + transliterate(data.payerCity);
-    payerStr = payerStr.substring(0, 70);
-  }
-
   const code = formatPaymentCode(data.paymentCode);
-  const purpose = transliterate(data.purpose).substring(0, 35);
   const currency = data.currency || 'RSD';
 
-  // Base String - mandatory fields
+  // Base String - mandatory fields (payer data excluded per NBS IPS standard)
   let qrString = `K:PR|V:01|C:1|R:${account}|N:${receiverStr}|I:${currency}${formattedAmount}`;
 
-  // Add payer only if not empty
-  if (payerStr) {
-    qrString += `|P:${payerStr}`;
+  // Add payment code
+  qrString += `|SF:${code}`;
+
+  // Add purpose only if provided (optional field)
+  if (data.purpose && data.purpose.trim()) {
+    const purpose = transliterate(data.purpose).substring(0, 35);
+    qrString += `|S:${purpose}`;
   }
 
-  // Add payment code and purpose
-  qrString += `|SF:${code}|S:${purpose}`;
-
-  // Optional Reference
+  // Optional Reference — user enters the complete reference (including check digits for model 97)
   if (data.reference && data.reference.trim()) {
-    const modelPrefix = data.model === '97' ? '97' : (data.model || '00');
-    let formattedReference = data.reference.trim();
-
-    if (data.model === '97') {
-       formattedReference = calculateModel97(formattedReference);
-    }
-
+    const modelPrefix = data.model || '00';
+    const formattedReference = data.reference.replace(/[\s-]/g, '').trim();
     qrString += `|RO:${modelPrefix}${formattedReference}`;
   }
 

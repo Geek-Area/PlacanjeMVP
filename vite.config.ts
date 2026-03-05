@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // Allow all hosts (needed for ngrok and similar tunneling services)
+        allowedHosts: true,
         // Enable client-side routing fallback for dev server
         historyApiFallback: true,
       },

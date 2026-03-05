@@ -201,7 +201,7 @@ const ShareView: React.FC = () => {
           {/* QR Code */}
           <div className="bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center">
             <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">
-              IPS QR Kod
+              NBS IPS QR Kod
             </h2>
             <div className="flex justify-center items-center">
               {slipData.qr_string ? (
