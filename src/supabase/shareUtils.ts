@@ -1,10 +1,11 @@
 import { supabase } from './config';
-import { PaymentData } from '@/types';
+import { PaymentData, FormType } from '@/types';
 
 export interface SharedSlipData {
   id: string;
   data: PaymentData;
   qr_string: string | null;
+  form_type: FormType;
   created_at: string;
   expires_at: string;
 }
@@ -12,7 +13,8 @@ export interface SharedSlipData {
 // Save payment slip to Supabase and return share ID
 export const saveSharedSlip = async (
   paymentData: PaymentData,
-  qrString: string | null
+  qrString: string | null,
+  formType: FormType = 'uplata'
 ): Promise<string> => {
   try {
     const expiresAt = new Date();
@@ -23,6 +25,7 @@ export const saveSharedSlip = async (
       .insert({
         data: paymentData,
         qr_string: qrString,
+        form_type: formType,
         expires_at: expiresAt.toISOString(),
       })
       .select('id')

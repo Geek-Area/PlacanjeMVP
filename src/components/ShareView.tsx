@@ -119,7 +119,8 @@ const ShareView: React.FC = () => {
       // Download the PNG
       const pngFile = canvas.toDataURL("image/png");
       const downloadLink = document.createElement("a");
-      downloadLink.download = `Uplatnica-${slipData?.data.receiverName || "Nalog"}.png`;
+      const prefix = slipData?.form_type === 'prenos' ? 'Prenos' : 'Uplatnica';
+      downloadLink.download = `${prefix}-${slipData?.data.receiverName || "Nalog"}.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
 
@@ -190,10 +191,12 @@ const ShareView: React.FC = () => {
         <div className="grid grid-cols-1 xl:grid-cols-[740px_1fr] gap-6 justify-center">
           {/* Payment Slip - Fixed width container */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Uplatnica</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">
+              {slipData.form_type === 'prenos' ? 'Nalog za prenos' : 'Uplatnica'}
+            </h2>
             <div className="bg-gray-50 rounded-xl p-4 flex justify-center overflow-x-auto">
               <div id="shared-payment-slip">
-                <PaymentSlip data={slipData.data} qrString={slipData.qr_string} />
+                <PaymentSlip data={slipData.data} qrString={slipData.qr_string} formType={slipData.form_type || 'uplata'} />
               </div>
             </div>
           </div>

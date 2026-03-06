@@ -226,8 +226,8 @@ const App: React.FC = () => {
     }));
   };
 
-  const autoFormatAccount = async () => {
-    const account = formData.receiverAccount;
+  const autoFormatAccountField = async (fieldName: 'receiverAccount' | 'payerAccount') => {
+    const account = formData[fieldName];
     if (!account || account.length === 0) return;
 
     const cleaned = account.replace(/[^0-9]/g, "");
@@ -254,7 +254,7 @@ const App: React.FC = () => {
 
     setFormData((prev) => ({
       ...prev,
-      receiverAccount: formatted,
+      [fieldName]: formatted,
     }));
 
     setIsFormattingAccount(false);
@@ -389,7 +389,8 @@ const App: React.FC = () => {
       // Download the PNG
       const pngFile = canvas.toDataURL("image/png");
       const downloadLink = document.createElement("a");
-      downloadLink.download = `Uplatnica-${formData.receiverName || "Nalog"}.png`;
+      const dlPrefix = formType === 'prenos' ? 'Prenos' : 'Uplatnica';
+      downloadLink.download = `${dlPrefix}-${formData.receiverName || "Nalog"}.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
 
@@ -423,7 +424,7 @@ const App: React.FC = () => {
       });
 
       // Save to Supabase
-      const shareId = await saveSharedSlip(formData, qrString);
+      const shareId = await saveSharedSlip(formData, qrString, formType);
 
       // Generate share URL
       const shareUrl = `${window.location.origin}/share/${shareId}`;
@@ -672,12 +673,26 @@ const App: React.FC = () => {
                           const cleaned = e.target.value.replace(/[^0-9]/g, "");
                           setFormData((prev) => ({ ...prev, payerAccount: cleaned.substring(0, 18) }));
                         }}
-                        className={`${inputClass} pl-10 font-mono tracking-wide`}
+                        onBlur={() => autoFormatAccountField('payerAccount')}
+                        className={`${inputClass} pl-10 pr-10 font-mono tracking-wide`}
                         placeholder="XXX-XXXXXXXXXXXXXXX-XX"
                         maxLength={21}
                         autoComplete="on"
                       />
+                      {isFormattingAccount && (
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          <RefreshCw size={16} className="text-blue-600 animate-spin" />
+                        </div>
+                      )}
+                      {!isFormattingAccount && formData.payerAccount.length === 18 && (
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          <CheckCircle2 size={16} className="text-green-600" />
+                        </div>
+                      )}
                     </div>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Unesite račun sa ili bez crtica (18 cifara)
+                    </p>
                   </div>
                 )}
 
@@ -725,7 +740,7 @@ const App: React.FC = () => {
                       inputMode="numeric"
                       value={getFormattedAccountDisplay()}
                       onChange={handleAccountChange}
-                      onBlur={autoFormatAccount}
+                      onBlur={() => autoFormatAccountField('receiverAccount')}
                       className={`${inputClass} pl-10 pr-10 font-mono tracking-wide`}
                       placeholder="XXX-XXXXXXXXXXXXXXX-XX"
                       maxLength={21}
