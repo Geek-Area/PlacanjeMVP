@@ -58,8 +58,20 @@ const App: React.FC = () => {
   });
 
   const [qrString, setQrString] = useState<string | null>(null);
-  const [savedSlips, setSavedSlips] = useState<SavedSlip[]>([]);
+  const [savedSlips, setSavedSlips] = useState<SavedSlip[]>(() => {
+    try {
+      const stored = localStorage.getItem('savedSlips');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isFormattingAccount, setIsFormattingAccount] = useState(false);
+
+  // Sync saved slips to localStorage
+  useEffect(() => {
+    localStorage.setItem('savedSlips', JSON.stringify(savedSlips));
+  }, [savedSlips]);
 
   // Save current payment slip to history
   const handleSaveSlip = () => {

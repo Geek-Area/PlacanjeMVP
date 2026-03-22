@@ -185,6 +185,9 @@ const ShareView: React.FC = () => {
           <p className="text-gray-600 text-center text-sm">
             Skenirajte QR kod ili preuzmite uplatnicu
           </p>
+          <p className="text-gray-400 text-center text-xs mt-1">
+            Link ističe: {new Date(slipData.expires_at).toLocaleDateString('sr-Latn-RS', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
         </div>
 
         {/* Content Grid - Payment Slip gets more space */}
