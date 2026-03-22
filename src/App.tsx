@@ -24,7 +24,7 @@ import {
   AlertCircle,
   Share2,
   History,
-  Plus,
+  Save,
   Trash2,
   ArrowLeftRight,
 } from "lucide-react";
@@ -846,7 +846,7 @@ const App: React.FC = () => {
                 className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 title="Sačuvaj trenutnu uplatnicu"
               >
-                <Plus size={18} />
+                <Save size={18} />
               </button>
             </div>
 
