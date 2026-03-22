@@ -13,6 +13,12 @@ dist-ssr
 *.local
 CLAUDE.md
 .env
+
+# Setup/reference files (not for repo)
+SUPABASE-SETUP.md
+supabase-setup.sql
+supabase-setup-accounts.sql
+placanje.png
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
