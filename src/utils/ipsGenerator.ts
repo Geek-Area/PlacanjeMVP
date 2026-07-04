@@ -31,11 +31,35 @@ export const formatBankAccount = (account: string): string => {
   return (first3 + rest).substring(0, 18);
 };
 
+export const parseAmountValue = (amount: string): number | null => {
+  const trimmed = amount.trim();
+  if (!trimmed) return null;
+
+  const hasComma = trimmed.includes(',');
+  const dotCount = (trimmed.match(/\./g) || []).length;
+  let normalized = trimmed;
+
+  if (hasComma) {
+    normalized = trimmed.replace(/\./g, '').replace(',', '.');
+  } else if (dotCount === 1) {
+    const [integerPart, decimalPart] = trimmed.split('.');
+    normalized =
+      decimalPart.length > 0 && decimalPart.length <= 2
+        ? `${integerPart}.${decimalPart}`
+        : trimmed.replace(/\./g, '');
+  } else {
+    normalized = trimmed.replace(/\./g, '');
+  }
+
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return null;
+
+  const num = Number.parseFloat(normalized);
+  return Number.isFinite(num) ? num : null;
+};
+
 export const formatAmount = (amount: string): string => {
-  // Replace comma with dot for parsing, remove any existing dots (thousand separators)
-  const cleanAmount = amount.replace(/\./g, '').replace(',', '.');
-  const num = parseFloat(cleanAmount);
-  if (isNaN(num)) return '0,00';
+  const num = parseAmountValue(amount);
+  if (num === null) return '0,00';
 
   // Format with 2 decimals
   const formatted = num.toFixed(2);
@@ -50,10 +74,8 @@ export const formatAmount = (amount: string): string => {
 
 // Format amount for QR code - NO thousand separators (NBS IPS requirement)
 export const formatAmountForQR = (amount: string): string => {
-  // Replace comma with dot for parsing, remove any existing dots (thousand separators)
-  const cleanAmount = amount.replace(/\./g, '').replace(',', '.');
-  const num = parseFloat(cleanAmount);
-  if (isNaN(num)) return '0,00';
+  const num = parseAmountValue(amount);
+  if (num === null) return '0,00';
 
   // Format with 2 decimals
   const formatted = num.toFixed(2);
@@ -113,6 +135,16 @@ export const validateModel97 = (fullReference: string): boolean => {
 export const generateIPSString = (data: PaymentData): string | null => {
   // Basic validation before generation
   if (!data.receiverAccount || !data.amount || !data.receiverName) return null;
+
+  const cleanAccount = data.receiverAccount.replace(/[^0-9]/g, '');
+  if (cleanAccount.length !== 18) return null;
+
+  const amountValue = parseAmountValue(data.amount);
+  if (amountValue === null || amountValue <= 0) return null;
+
+  if (data.model === '97' && data.reference.trim() && !validateModel97(data.reference)) {
+    return null;
+  }
 
   const account = formatBankAccount(data.receiverAccount);
   // Receiver formatting: Name \n Address \n City

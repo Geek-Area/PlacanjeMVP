@@ -8,6 +8,7 @@ import {
   generateIPSString,
   formatAmount,
   formatBankAccount,
+  parseAmountValue,
   validateModel97,
 } from "@/utils/ipsGenerator";
 import PaymentSlip from "@/components/PaymentSlip";
@@ -160,13 +161,32 @@ const App: React.FC = () => {
       };
     }
 
-    // Check if amount is filled
+    // Check if amount is filled and valid
     if (!formData.amount) {
       return {
         isValid: false,
         showError: true,
         icon: "error",
         message: "Iznos nije unet",
+      };
+    }
+
+    const parsedAmount = parseAmountValue(formData.amount);
+    if (parsedAmount === null || parsedAmount <= 0) {
+      return {
+        isValid: false,
+        showError: true,
+        icon: "error",
+        message: "Iznos mora biti ispravan i veći od nule",
+      };
+    }
+
+    if (formData.model === "97" && formData.reference.trim() && !validateModel97(formData.reference)) {
+      return {
+        isValid: false,
+        showError: true,
+        icon: "error",
+        message: "Kontrolni broj nije ispravan za Model 97",
       };
     }
 
@@ -196,10 +216,23 @@ const App: React.FC = () => {
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value;
-    // Remove all formatting (dots and convert comma to dot for storage)
-    const cleaned = value.replace(/\./g, "").replace(",", ".");
-    // Store the clean value
+    const value = e.target.value.trim();
+    const hasComma = value.includes(",");
+    const dotCount = (value.match(/\./g) || []).length;
+    let cleaned = value;
+
+    if (hasComma) {
+      cleaned = value.replace(/\./g, "").replace(",", ".");
+    } else if (dotCount === 1) {
+      const [integerPart, decimalPart] = value.split(".");
+      cleaned =
+        decimalPart.length > 0 && decimalPart.length <= 2
+          ? `${integerPart}.${decimalPart}`
+          : value.replace(/\./g, "");
+    } else if (dotCount > 1) {
+      cleaned = value.replace(/\./g, "");
+    }
+
     setFormData((prev) => ({
       ...prev,
       amount: cleaned,
@@ -801,7 +834,7 @@ const App: React.FC = () => {
                         placeholder="Poziv na broj"
                         autoComplete="off"
                       />
-                      {formData.model === "97" && formData.reference.length >= 3 && (
+                      {formData.model === "97" && formData.reference.trim() && (
                         <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                           {validateModel97(formData.reference) ? (
                             <CheckCircle2 size={16} className="text-green-600" />
@@ -811,7 +844,7 @@ const App: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    {formData.model === "97" && formData.reference.length >= 3 && !validateModel97(formData.reference) && (
+                    {formData.model === "97" && formData.reference.trim() && !validateModel97(formData.reference) && (
                       <p className="text-[10px] text-red-500 mt-1">
                         Kontrolni broj nije ispravan za Model 97
                       </p>
