@@ -5,6 +5,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import html2canvas from 'html2canvas';
 import PaymentSlip from '@/components/PaymentSlip';
 import { getSharedSlip, SharedSlipData } from '@/supabase/shareUtils';
+import { generateIPSString } from '@/utils/ipsGenerator';
 import { AlertCircle, Loader2, Download } from 'lucide-react';
 
 const ShareView: React.FC = () => {
@@ -172,6 +173,9 @@ const ShareView: React.FC = () => {
     );
   }
 
+  // Fallback for slips saved without a precomputed QR string (e.g. created via the REST API)
+  const qrString = slipData.qr_string ?? generateIPSString(slipData.data);
+
   return (
     <>
       <Toaster />
@@ -199,7 +203,7 @@ const ShareView: React.FC = () => {
             </h2>
             <div className="bg-gray-50 rounded-xl p-4 flex justify-center overflow-x-auto">
               <div id="shared-payment-slip">
-                <PaymentSlip data={slipData.data} qrString={slipData.qr_string} formType={slipData.form_type || 'uplata'} />
+                <PaymentSlip data={slipData.data} qrString={qrString} formType={slipData.form_type || 'uplata'} />
               </div>
             </div>
           </div>
@@ -210,10 +214,10 @@ const ShareView: React.FC = () => {
               NBS IPS QR Kod
             </h2>
             <div className="flex justify-center items-center">
-              {slipData.qr_string ? (
+              {qrString ? (
                 <div className="bg-gray-50 p-6 rounded-2xl">
                   <QRCodeSVG
-                    value={slipData.qr_string}
+                    value={qrString}
                     size={300}
                     level="M"
                     includeMargin={true}
