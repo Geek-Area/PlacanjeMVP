@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
 import App from '@/App';
 import ShareView from '@/components/ShareView';
+import ApiDocs from '@/components/ApiDocs';
 import '@/index.css';
 
 const rootElement = document.getElementById('root');
@@ -17,7 +18,10 @@ root.render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<App />} />
+        <Route path="/s" element={<ShareView />} />
+        {/* Legacy path — old links have no fragment and render the "invalid link" state */}
         <Route path="/share/:shareId" element={<ShareView />} />
+        <Route path="/api" element={<ApiDocs />} />
       </Routes>
     </BrowserRouter>
     <Analytics />
