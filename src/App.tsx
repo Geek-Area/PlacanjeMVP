@@ -12,7 +12,8 @@ import {
   validateModel97,
 } from "@/utils/ipsGenerator";
 import PaymentSlip from "@/components/PaymentSlip";
-import { saveSharedSlip } from "@/supabase/shareUtils";
+import Footer from "@/components/Footer";
+import { encodeSlipData } from "@/utils/slipLink";
 import {
   CreditCard,
   CheckCircle2,
@@ -462,51 +463,36 @@ const App: React.FC = () => {
       return;
     }
 
+    // Stateless link: all slip data is encoded into the URL fragment — no server,
+    // no database, no expiry. The fragment never reaches the server.
+    const shareUrl = `${window.location.origin}/s#${encodeSlipData(formData, formType)}`;
+
+    // Copy to clipboard with fallback for non-HTTPS contexts
     try {
-      toast.loading('Kreiranje linka za deljenje...', {
-        duration: 1000,
-        position: 'bottom-center',
-      });
-
-      // Save to Supabase
-      const shareId = await saveSharedSlip(formData, qrString, formType);
-
-      // Generate share URL
-      const shareUrl = `${window.location.origin}/share/${shareId}`;
-
-      // Copy to clipboard with fallback for non-HTTPS contexts
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(shareUrl);
-        } else {
-          // Fallback for browsers/contexts without clipboard API
-          const textArea = document.createElement('textarea');
-          textArea.value = shareUrl;
-          textArea.style.position = 'fixed';
-          textArea.style.left = '-999999px';
-          textArea.style.top = '-999999px';
-          document.body.appendChild(textArea);
-          textArea.focus();
-          textArea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textArea);
-        }
-      } catch (clipboardError) {
-        console.error('Clipboard error:', clipboardError);
-        // Still show the link even if clipboard fails
-        alert(`Link: ${shareUrl}\n\nKopirajte link ručno.`);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        // Fallback for browsers/contexts without clipboard API
+        const textArea = document.createElement('textarea');
+        textArea.value = shareUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
       }
 
       toast.success('Link kopiran u clipboard!', {
         duration: 3000,
         position: 'bottom-center',
       });
-    } catch (error) {
-      console.error('Share error:', error);
-      toast.error('Greška pri kreiranju linka', {
-        duration: 2000,
-        position: 'bottom-center',
-      });
+    } catch (clipboardError) {
+      console.error('Clipboard error:', clipboardError);
+      // Still show the link even if clipboard fails
+      window.prompt('Kopirajte link:', shareUrl);
     }
   };
 
@@ -1091,10 +1077,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="mt-8 text-center text-gray-400 text-xs">
-        Placanje.RS &copy; 2026
-      </div>
+      <Footer />
     </div>
   );
 };
