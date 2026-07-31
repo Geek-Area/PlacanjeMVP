@@ -6,40 +6,43 @@ import Footer from '@/components/Footer';
 import appsScriptExample from '../../docs/apps-script-example.gs?raw';
 
 interface FieldRow {
-  key: string;
+  position: number;
   name: string;
   required: boolean;
   note: string;
 }
 
 const FIELDS: FieldRow[] = [
-  { key: 'rn', name: 'receiverName', required: true, note: 'Naziv primaoca' },
-  { key: 'rac', name: 'receiverAccount', required: true, note: 'Račun primaoca — 18 cifara (sa ili bez crtica)' },
-  { key: 'am', name: 'amount', required: true, note: 'Iznos, npr. "1234.56" ili "1.234,56"' },
-  { key: 'pu', name: 'purpose', required: false, note: 'Svrha plaćanja' },
-  { key: 'sf', name: 'paymentCode', required: false, note: 'Šifra plaćanja (podrazumevano 189)' },
-  { key: 'mo', name: 'model', required: false, note: 'Model poziva na broj (npr. 97)' },
-  { key: 're', name: 'reference', required: false, note: 'Poziv na broj (odobrenje)' },
-  { key: 'ra', name: 'receiverAddress', required: false, note: 'Adresa primaoca' },
-  { key: 'rc', name: 'receiverCity', required: false, note: 'Mesto primaoca' },
-  { key: 'cur', name: 'currency', required: false, note: 'Valuta (podrazumevano RSD)' },
-  { key: 't', name: 'form_type', required: false, note: '"prenos" za nalog za prenos (podrazumevano uplata)' },
+  { position: 0, name: 'payerName', required: false, note: 'Ime ili naziv uplatioca' },
+  { position: 1, name: 'payerAddress', required: false, note: 'Adresa uplatioca' },
+  { position: 2, name: 'payerCity', required: false, note: 'Mesto uplatioca' },
+  { position: 3, name: 'payerAccount', required: false, note: 'Račun uplatioca' },
+  { position: 4, name: 'purpose', required: false, note: 'Svrha plaćanja' },
+  { position: 5, name: 'receiverName', required: true, note: 'Naziv primaoca' },
+  { position: 6, name: 'receiverAddress', required: false, note: 'Adresa primaoca' },
+  { position: 7, name: 'receiverCity', required: false, note: 'Mesto primaoca' },
+  { position: 8, name: 'receiverAccount', required: true, note: 'Račun primaoca — 18 cifara' },
+  { position: 9, name: 'paymentCode', required: false, note: 'Šifra plaćanja (189 ili 253)' },
+  { position: 10, name: 'currency', required: false, note: 'Valuta (podrazumevano RSD)' },
+  { position: 11, name: 'amount', required: true, note: 'Iznos, npr. "1234.56" ili "1.234,56"' },
+  { position: 12, name: 'model', required: false, note: 'Model poziva na broj' },
+  { position: 13, name: 'reference', required: false, note: 'Poziv na broj (odobrenje)' },
+  { position: 14, name: 'debitModel', required: false, note: 'Model zaduženja' },
+  { position: 15, name: 'debitReference', required: false, note: 'Poziv na broj zaduženja' },
 ];
 
-const jsExample = `const data = {
-  rn: "Moja Firma d.o.o.",
-  rac: "160000000012345 78".replace(/\\s/g, ""),
-  am: "1234.56",
-  pu: "Racun 2026-001",
-  sf: "189",
-  mo: "97",
-  re: "9712345678901"
-};
+const jsExample = `import { gzipSync } from "node:zlib";
 
-const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))))
-  .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+const values = [
+  "", "", "", "", "Racun 2026-001",
+  "Moja Firma d.o.o.", "", "", "16000000001234578",
+  "", "", "1234.56", "97", "9712345678901"
+];
 
-const link = "https://placanje.rs/s#" + encoded;`;
+const encoded = gzipSync(Buffer.from(JSON.stringify(values), "utf8"))
+  .toString("base64url");
+
+const link = "https://placanje.rs/s#2u." + encoded;`;
 
 const Section: React.FC<{
   icon: React.ReactNode;
@@ -91,14 +94,19 @@ const ApiDocs: React.FC = () => (
       <Section icon={<Link2 size={22} />} title="Format linka">
         <p className="text-sm text-gray-600 mb-3">
           Link ima oblik <code className="bg-gray-100 px-1.5 py-0.5 rounded">https://placanje.rs/s#&lt;kod&gt;</code>,
-          gde je <code>&lt;kod&gt;</code> Base64URL enkodiran JSON objekat sa podacima uplatnice.
+          gde <code>&lt;kod&gt;</code> počinje sa <code>2u.</code> ili <code>2p.</code>, a zatim sadrži
+          GZIP kompresovan i Base64URL enkodiran niz podataka uplatnice.
           Otvaranjem linka aplikacija dekodira podatke i prikazuje uplatnicu sa QR kodom.
         </p>
         <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
-          <li>Napravite JSON objekat sa skraćenim ključevima (tabela ispod).</li>
-          <li>Enkodirajte ga kao UTF-8 → Base64URL (znaci <code>+/</code> → <code>-_</code>, bez <code>=</code> na kraju).</li>
-          <li>Dodajte ga kao fragment: <code>/s#&lt;kod&gt;</code>.</li>
+          <li>Napravite JSON niz vrednosti po redosledu iz tabele.</li>
+          <li>Uklonite prazne vrednosti sa kraja i GZIP kompresujte UTF-8 JSON.</li>
+          <li>Enkodirajte bajtove kao Base64URL bez <code>=</code> na kraju.</li>
+          <li>Dodajte prefiks <code>2u.</code> za uplatu ili <code>2p.</code> za prenos.</li>
         </ol>
+        <p className="text-xs text-gray-400 mt-3">
+          Stari Base64URL JSON linkovi i dalje rade; novi format je kraći i preporučen.
+        </p>
       </Section>
 
       {/* Field reference */}
@@ -107,7 +115,7 @@ const ApiDocs: React.FC = () => (
           <table className="w-full text-sm text-left border-collapse">
             <thead>
               <tr className="text-gray-500 border-b border-gray-200">
-                <th className="py-2 pr-4 font-semibold">Ključ</th>
+                <th className="py-2 pr-4 font-semibold">Pozicija</th>
                 <th className="py-2 pr-4 font-semibold">Polje</th>
                 <th className="py-2 pr-4 font-semibold">Obavezno</th>
                 <th className="py-2 font-semibold">Opis</th>
@@ -115,8 +123,8 @@ const ApiDocs: React.FC = () => (
             </thead>
             <tbody>
               {FIELDS.map((f) => (
-                <tr key={f.key} className="border-b border-gray-100">
-                  <td className="py-2 pr-4 font-mono text-blue-700">{f.key}</td>
+                <tr key={f.position} className="border-b border-gray-100">
+                  <td className="py-2 pr-4 font-mono text-blue-700">{f.position}</td>
                   <td className="py-2 pr-4 font-mono text-gray-700">{f.name}</td>
                   <td className="py-2 pr-4">
                     {f.required ? (
@@ -132,8 +140,7 @@ const ApiDocs: React.FC = () => (
           </table>
         </div>
         <p className="text-xs text-gray-400 mt-3">
-          Za nalog za prenos dostupna su i polja platioca (<code>pn</code>, <code>pa</code>,{' '}
-          <code>pc</code>, <code>pac</code>) i zaduženja (<code>dm</code>, <code>dr</code>).
+          Prazna polja ostaju prazni stringovi; samo prazne vrednosti na kraju niza mogu da se izostave.
         </p>
       </Section>
 
@@ -148,9 +155,9 @@ const ApiDocs: React.FC = () => (
       </Section>
 
       {/* Generic example */}
-      <Section icon={<Code2 size={22} />} title="Bilo koji jezik (JavaScript primer)">
+      <Section icon={<Code2 size={22} />} title="Bilo koji jezik (Node.js primer)">
         <p className="text-sm text-gray-600 mb-3">
-          Isti princip radi u bilo kom jeziku — napravite JSON, enkodirajte ga Base64URL, dodajte kao fragment:
+          Isti princip radi u bilo kom jeziku koji podržava GZIP i Base64URL:
         </p>
         <CodeBlock>{jsExample}</CodeBlock>
       </Section>

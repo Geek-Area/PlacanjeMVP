@@ -15,18 +15,16 @@
  *  - Za model "97", reference mora sadržati i kontrolne cifre.
  *  - Link ne ističe i ne kreira nikakav zapis u bazi.
  *
- * Skraćeni ključevi ispod moraju odgovarati mapi u src/utils/slipLink.ts.
+ * Redosled polja ispod je deo v2 formata i mora odgovarati FIELD_ORDER nizu u
+ * src/utils/slipLink.ts.
  */
 
-// "Lepi" naziv polja -> skraćeni ključ koji čita aplikacija.
-var FIELD_MAP = {
-  payerName: 'pn', payerAddress: 'pa', payerCity: 'pc', payerAccount: 'pac',
-  purpose: 'pu',
-  receiverName: 'rn', receiverAddress: 'ra', receiverCity: 'rc', receiverAccount: 'rac',
-  paymentCode: 'sf', currency: 'cur', amount: 'am',
-  model: 'mo', reference: 're',
-  debitModel: 'dm', debitReference: 'dr'
-};
+var FIELD_ORDER = [
+  'payerName', 'payerAddress', 'payerCity', 'payerAccount', 'purpose',
+  'receiverName', 'receiverAddress', 'receiverCity', 'receiverAccount',
+  'paymentCode', 'currency', 'amount', 'model', 'reference',
+  'debitModel', 'debitReference'
+];
 
 /**
  * Vraća share URL za dati objekat uplatnice.
@@ -55,21 +53,23 @@ function buildPaymentLink(payment) {
     throw new Error('amount mora biti veći od 0 (npr. "1.234,56" ili "1234.56").');
   }
 
-  // Kompaktni objekat sa skraćenim ključevima; prazna polja se izostavljaju.
-  var compact = {};
-  Object.keys(FIELD_MAP).forEach(function (field) {
+  var formType = String(payment.formType || 'uplata') === 'prenos' ? 'prenos' : 'uplata';
+  var defaultPaymentCode = formType === 'prenos' ? '253' : '189';
+  var values = FIELD_ORDER.map(function (field) {
     var value = payment[field];
-    if (value !== undefined && value !== null && String(value).trim() !== '') {
-      compact[FIELD_MAP[field]] = String(value);
-    }
+    if (value === undefined || value === null || String(value).trim() === '') return '';
+    if (field === 'currency' && String(value) === 'RSD') return '';
+    if (field === 'paymentCode' && String(value) === defaultPaymentCode) return '';
+    return String(value);
   });
-  if (String(payment.formType || 'uplata') === 'prenos') {
-    compact.t = 'prenos';
+  while (values.length && values[values.length - 1] === '') {
+    values.pop();
   }
 
-  var json = JSON.stringify(compact);
-  var encoded = Utilities.base64EncodeWebSafe(json, Utilities.Charset.UTF_8).replace(/=+$/, '');
-  return appUrl.replace(/\/+$/, '') + '/s#' + encoded;
+  var compressed = Utilities.gzip(Utilities.newBlob(JSON.stringify(values))).getBytes();
+  var encoded = Utilities.base64EncodeWebSafe(compressed).replace(/=+$/, '');
+  var prefix = formType === 'prenos' ? '2p.' : '2u.';
+  return appUrl.replace(/\/+$/, '') + '/s#' + prefix + encoded;
 }
 
 /**
