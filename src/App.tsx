@@ -381,17 +381,23 @@ const App: React.FC = () => {
       const inputs = clone.querySelectorAll("input");
       inputs.forEach((input) => {
         const div = document.createElement("div");
-        div.textContent = input.value;
+        const value = document.createElement("span");
+        value.textContent = input.value;
+        value.style.display = "block";
+        value.style.transform = "translateY(-6px)";
+        div.appendChild(value);
+        const inputStyle = getComputedStyle(input);
 
         // Match input styling exactly
         div.style.border = "2px solid #000";
-        div.style.fontSize = "12px";
+        div.style.fontSize = inputStyle.fontSize;
         div.style.padding = "2px";
         div.style.width = "100%";
+        div.style.height = inputStyle.height;
         div.style.boxSizing = "border-box";
         div.style.display = "flex";
         div.style.alignItems = "center";
-        div.style.minHeight = "20px";
+        div.style.lineHeight = inputStyle.lineHeight;
         div.style.fontFamily = "Arial, sans-serif";
         div.style.backgroundColor = "#ffffff";
 
@@ -403,19 +409,26 @@ const App: React.FC = () => {
       textareas.forEach((textarea) => {
         const div = document.createElement("div");
         div.textContent = textarea.value;
+        const textareaStyle = getComputedStyle(textarea);
 
         // Match textarea styling exactly
         div.style.border = "1px solid #000";
-        div.style.fontSize = "12px";
+        div.style.fontSize = textareaStyle.fontSize;
         div.style.padding = "2px";
         div.style.width = "100%";
+        div.style.height = textareaStyle.height;
         div.style.boxSizing = "border-box";
+        div.style.display = "block";
         div.style.whiteSpace = "pre-line";
+        div.style.lineHeight = textareaStyle.lineHeight;
         div.style.fontFamily = "Arial, sans-serif";
-        div.style.minHeight = getComputedStyle(textarea).height;
         div.style.backgroundColor = "#ffffff";
 
         textarea.parentNode?.replaceChild(div, textarea);
+      });
+
+      clone.querySelectorAll<HTMLElement>(".form-group label").forEach((label) => {
+        label.style.transform = "translateY(-2px)";
       });
 
       // Wait briefly for DOM to update
