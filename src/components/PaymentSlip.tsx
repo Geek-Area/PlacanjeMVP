@@ -43,6 +43,7 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
           transform-origin: top center;
           width: 680px;
           transition: transform 0.2s ease;
+          font-family: Arial, sans-serif;
         }
         @media (max-width: 1400px) { #payment-slip-wrapper { transform: scale(0.95); } }
         @media (max-width: 1280px) { #payment-slip-wrapper { transform: scale(0.90); } }
@@ -60,20 +61,14 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
         @media (max-width: 420px) { #payment-slip-wrapper { transform: scale(0.54); } }
         @media (max-width: 390px) { #payment-slip-wrapper { transform: scale(0.50); } }
         @media (max-width: 360px) { #payment-slip-wrapper { transform: scale(0.46); } }
-        body {
-          font-family: Arial, sans-serif;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          margin: 0;
-        }
-        input, textarea { font-size: 12px; }
-        input {
+        #payment-slip-wrapper input,
+        #payment-slip-wrapper textarea { font-size: 12px; }
+        #payment-slip-wrapper input {
           height: 24px;
           border: 2px solid #000;
           line-height: 20px;
         }
-        textarea {
+        #payment-slip-wrapper textarea {
           border: 1px solid #000;
           line-height: 1.25;
         }
