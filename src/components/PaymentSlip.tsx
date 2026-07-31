@@ -29,6 +29,12 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
   };
 
   const isPrenos = formType === 'prenos';
+  const slipQRCode = qrString ? (
+    <div className="slip-qr" data-payment-slip-qr="true">
+      <QRCodeSVG value={qrString} size={104} level="M" includeMargin={true} />
+      <span>NBS IPS QR kod</span>
+    </div>
+  ) : null;
 
   return (
     <div id="payment-slip" style={{ width: '100%', display: 'flex', justifyContent: 'center', overflow: 'visible' }}>
@@ -62,8 +68,15 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
           margin: 0;
         }
         input, textarea { font-size: 12px; }
-        input { border: 2px solid #000; }
-        textarea { border: 1px solid #000; }
+        input {
+          height: 24px;
+          border: 2px solid #000;
+          line-height: 20px;
+        }
+        textarea {
+          border: 1px solid #000;
+          line-height: 1.25;
+        }
         .container {
           margin-top: 20px;
           width: 680px;
@@ -100,16 +113,20 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
         .form-group { margin-bottom: 2px; }
         .form-group label {
           display: block;
-          margin-bottom: 2px;
+          margin-bottom: 6px;
           font-size: 10px;
+          line-height: 1.1;
         }
         .form-group input,
         .form-group textarea {
           width: 100%;
-          padding: 2px;
           box-sizing: border-box;
         }
-        .form-group textarea { resize: none; }
+        .form-group input { padding: 2px; }
+        .form-group textarea {
+          padding: 2px;
+          resize: none;
+        }
         .form-group small { display: block; margin-top: 5px; }
         .right .form-group { margin-bottom: 8px; }
         .title {
@@ -129,6 +146,38 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
           display: flex;
           justify-content: space-between;
           margin-top: 30px;
+        }
+        .prenos-left-footer {
+          min-height: 112px;
+          margin-top: auto;
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .prenos-left-footer .pp {
+          width: 52%;
+          margin-top: 0;
+        }
+        .slip-qr {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          flex: 0 0 auto;
+          line-height: 1;
+        }
+        .slip-qr svg {
+          display: block;
+          background: #fff;
+        }
+        .slip-qr span {
+          margin-top: 1px;
+          font-size: 8px;
+          white-space: nowrap;
+        }
+        .ips .slip-qr {
+          margin-left: auto;
+          transform: translateX(5mm);
         }
         .pp, .mdp, .dv, .di, .hitno {
           font-size: 10px;
@@ -212,8 +261,11 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
                 />
               </div>
               {isPrenos ? (
-                <div className="pp">
-                  печат и потпис платиоца/примаоца
+                <div className="prenos-left-footer">
+                  <div className="pp">
+                    печат и потпис платиоца/примаоца
+                  </div>
+                  {slipQRCode}
                 </div>
               ) : (
                 <>
@@ -383,7 +435,7 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
                       датум валуте
                     </div>
                     <div className="ips">
-                      {qrString && <QRCodeSVG value={qrString} size={110} level="M" />}
+                      {slipQRCode}
                     </div>
                   </div>
                 </>
