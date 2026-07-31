@@ -177,6 +177,7 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
         }
         .ips .slip-qr {
           margin-left: auto;
+          transform: translateX(5mm);
         }
         .pp, .mdp, .dv, .di, .hitno {
           font-size: 10px;

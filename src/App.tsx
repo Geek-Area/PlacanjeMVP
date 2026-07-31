@@ -220,10 +220,15 @@ const App: React.FC = () => {
     const value = e.target.value.trim();
     const hasComma = value.includes(",");
     const dotCount = (value.match(/\./g) || []).length;
+    const inputType = (e.nativeEvent as InputEvent).inputType || "";
+    const deletingGroupedInteger =
+      inputType.startsWith("delete") && !formData.amount.includes(".");
     let cleaned = value;
 
     if (hasComma) {
       cleaned = value.replace(/\./g, "").replace(",", ".");
+    } else if (deletingGroupedInteger) {
+      cleaned = value.replace(/\./g, "");
     } else if (dotCount === 1) {
       const [integerPart, decimalPart] = value.split(".");
       cleaned =
