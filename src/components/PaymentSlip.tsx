@@ -1,6 +1,7 @@
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PaymentData, FormType } from '@/types';
+import { parseAmountValue } from '@/utils/ipsGenerator';
 
 interface PaymentSlipProps {
   data: PaymentData;
@@ -19,8 +20,8 @@ const PaymentSlip: React.FC<PaymentSlipProps> = ({ data, qrString, formType = 'u
 
   const formatAmountDisplay = (amount: string) => {
     if (!amount) return '';
-    const num = parseFloat(amount.replace(/\./g, '').replace(',', '.'));
-    if (isNaN(num)) return '';
+    const num = parseAmountValue(amount);
+    if (num === null) return '';
     return '= ' + num.toLocaleString('sr-RS', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
