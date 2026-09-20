@@ -1,114 +1,29 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Toaster, toast } from 'react-hot-toast';
-import html2canvas from 'html2canvas';
+import JSZip from 'jszip';
 import PaymentSlip from '@/components/PaymentSlip';
 import Footer from '@/components/Footer';
-import { decodeSlipData } from '@/utils/slipLink';
+import OrderTabs from '@/components/OrderTabs';
+import { decodeSlipsData } from '@/utils/slipLink';
 import { generateIPSString } from '@/utils/ipsGenerator';
+import { sanitizeFilename, captureSlipElementToPngBlob, downloadBlob } from '@/utils/downloadHelpers';
 import { AlertCircle, Download } from 'lucide-react';
 
 const ShareView: React.FC = () => {
-  // The slip lives entirely in the URL fragment — decode it once, synchronously.
-  const slip = useMemo(() => decodeSlipData(window.location.hash), []);
+  // The slip(s) live entirely in the URL fragment — decode it once, synchronously.
+  const orders = useMemo(() => decodeSlipsData(window.location.hash), []);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeOrder = orders?.[activeIndex] ?? null;
 
-  const handleDownloadPaymentSlip = async () => {
+  const handleDownloadSingleSlip = async () => {
     const element = document.getElementById('shared-payment-slip');
-    if (!element) return;
+    if (!element || !activeOrder) return;
 
     try {
-      // Clone the payment slip element
-      const clone = element.cloneNode(true) as HTMLElement;
-      clone.id = 'payment-slip-clone';
-
-      // Create a container for the clone
-      const container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.top = '0';
-      container.style.left = '0';
-      container.style.zIndex = '-1';
-      container.style.opacity = '0';
-      container.style.pointerEvents = 'none';
-
-      // Append clone to container, then container to body
-      container.appendChild(clone);
-      document.body.appendChild(container);
-
-      // Replace all inputs with divs to fix html2canvas rendering issues
-      const inputs = clone.querySelectorAll('input');
-      inputs.forEach((input) => {
-        const div = document.createElement('div');
-        const value = document.createElement('span');
-        value.textContent = input.value;
-        value.style.display = 'block';
-        value.style.transform = 'translateY(-6px)';
-        div.appendChild(value);
-        const inputStyle = getComputedStyle(input);
-
-        // Match input styling exactly
-        div.style.border = '2px solid #000';
-        div.style.fontSize = inputStyle.fontSize;
-        div.style.padding = '2px';
-        div.style.width = '100%';
-        div.style.height = inputStyle.height;
-        div.style.boxSizing = 'border-box';
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
-        div.style.lineHeight = inputStyle.lineHeight;
-        div.style.fontFamily = 'Arial, sans-serif';
-        div.style.backgroundColor = '#ffffff';
-
-        input.parentNode?.replaceChild(div, input);
-      });
-
-      // Replace all textareas with divs
-      const textareas = clone.querySelectorAll('textarea');
-      textareas.forEach((textarea) => {
-        const div = document.createElement('div');
-        div.textContent = textarea.value;
-        const textareaStyle = getComputedStyle(textarea);
-
-        // Match textarea styling exactly
-        div.style.border = '1px solid #000';
-        div.style.fontSize = textareaStyle.fontSize;
-        div.style.padding = '2px';
-        div.style.width = '100%';
-        div.style.height = textareaStyle.height;
-        div.style.boxSizing = 'border-box';
-        div.style.display = 'block';
-        div.style.whiteSpace = 'pre-line';
-        div.style.lineHeight = textareaStyle.lineHeight;
-        div.style.fontFamily = 'Arial, sans-serif';
-        div.style.backgroundColor = '#ffffff';
-
-        textarea.parentNode?.replaceChild(div, textarea);
-      });
-
-      clone.querySelectorAll<HTMLElement>('.form-group label').forEach((label) => {
-        label.style.transform = 'translateY(-2px)';
-      });
-
-      // Wait briefly for DOM to update
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Capture the clone with html2canvas
-      const canvas = await html2canvas(clone, {
-        scale: 3,
-        backgroundColor: '#ffffff',
-        logging: false,
-        useCORS: true,
-      });
-
-      // Remove the container
-      document.body.removeChild(container);
-
-      // Download the PNG
-      const pngFile = canvas.toDataURL('image/png');
-      const downloadLink = document.createElement('a');
-      const prefix = slip?.formType === 'prenos' ? 'Prenos' : 'Uplatnica';
-      downloadLink.download = `${prefix}-${slip?.data.receiverName || 'Nalog'}.png`;
-      downloadLink.href = pngFile;
-      downloadLink.click();
+      const blob = await captureSlipElementToPngBlob(element);
+      const prefix = activeOrder.formType === 'prenos' ? 'Prenos' : 'Uplatnica';
+      downloadBlob(blob, `${prefix}-${activeOrder.data.receiverName || 'Nalog'}.png`);
 
       toast.success('Uplatnica sačuvana!', {
         duration: 2000,
@@ -123,7 +38,38 @@ const ShareView: React.FC = () => {
     }
   };
 
-  if (!slip) {
+  const handleDownloadAllSlips = async () => {
+    if (!orders) return;
+
+    try {
+      const zip = new JSZip();
+      for (let i = 0; i < orders.length; i++) {
+        const element = document.getElementById(`shared-payment-slip-page-${i}`);
+        if (!element) continue;
+        const blob = await captureSlipElementToPngBlob(element);
+        const prefix = orders[i].formType === 'prenos' ? 'Prenos' : 'Uplatnica';
+        const label = sanitizeFilename(orders[i].data.receiverName, `Nalog-${i + 1}`);
+        zip.file(`${prefix}-${i + 1}-${label}.png`, blob);
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(zipBlob, 'Uplatnice.zip');
+      toast.success('Uplatnice preuzete kao ZIP!', {
+        duration: 2000,
+        position: 'bottom-center',
+      });
+    } catch (error) {
+      console.error('ZIP download error:', error);
+      toast.error('Greška pri preuzimanju uplatnica', {
+        duration: 2000,
+        position: 'bottom-center',
+      });
+    }
+  };
+
+  const handleDownloadPaymentSlip = () =>
+    orders && orders.length > 1 ? handleDownloadAllSlips() : handleDownloadSingleSlip();
+
+  if (!orders || !activeOrder) {
     return (
       <>
         <Toaster />
@@ -144,7 +90,7 @@ const ShareView: React.FC = () => {
     );
   }
 
-  const { data, formType } = slip;
+  const { data, formType } = activeOrder;
   const qrString = generateIPSString(data);
 
   return (
@@ -158,8 +104,15 @@ const ShareView: React.FC = () => {
               Podeljeno sa vama
             </h1>
             <p className="text-gray-600 text-center text-sm">
-              Skenirajte QR kod ili preuzmite uplatnicu
+              {orders.length > 1
+                ? `Skenirajte QR kod ili preuzmite uplatnicu (${orders.length} uplatnice)`
+                : 'Skenirajte QR kod ili preuzmite uplatnicu'}
             </p>
+            {orders.length > 1 && (
+              <div className="flex justify-center mt-4">
+                <OrderTabs count={orders.length} activeIndex={activeIndex} onSelect={setActiveIndex} />
+              </div>
+            )}
           </div>
 
           {/* Content Grid - Payment Slip gets more space */}
@@ -168,6 +121,11 @@ const ShareView: React.FC = () => {
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <h2 className="text-xl font-bold text-gray-800 mb-4">
                 {formType === 'prenos' ? 'Nalog za prenos' : 'Uplatnica'}
+                {orders.length > 1 && (
+                  <span className="text-sm font-normal text-gray-400 ml-2">
+                    (stranica {activeIndex + 1} od {orders.length})
+                  </span>
+                )}
               </h2>
               <div className="bg-gray-50 rounded-xl p-4 flex justify-center overflow-x-auto">
                 <div id="shared-payment-slip">
@@ -205,7 +163,7 @@ const ShareView: React.FC = () => {
               className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
             >
               <Download size={20} />
-              Preuzmi uplatnicu
+              {orders.length > 1 ? 'Preuzmi uplatnice (ZIP)' : 'Preuzmi uplatnicu'}
             </button>
             <a
               href="/"
@@ -218,6 +176,21 @@ const ShareView: React.FC = () => {
           <Footer />
         </div>
       </div>
+
+      {/* Off-screen mirror of every uplatnica, used only to build the ZIP when
+          downloading multiple slips at once. */}
+      {orders.length > 1 && (
+        <div
+          aria-hidden="true"
+          style={{ position: 'fixed', top: 0, left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        >
+          {orders.map((order, index) => (
+            <div id={`shared-payment-slip-page-${index}`} key={index}>
+              <PaymentSlip data={order.data} qrString={generateIPSString(order.data)} formType={order.formType} />
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 };

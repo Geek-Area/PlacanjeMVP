@@ -41,6 +41,18 @@ const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))))
 
 const link = "https://placanje.rs/s#" + encoded;`;
 
+const multiSlipJsExample = `const list = {
+  L: [
+    { rn: "Moja Firma d.o.o.", rac: "160000000012345678", am: "1234.56", pu: "Racun 2026-001" },
+    { rn: "Moja Firma d.o.o.", rac: "160000000012345678", am: "2500.00", pu: "Racun 2026-002" }
+  ]
+};
+
+const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(list))))
+  .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+
+const link = "https://placanje.rs/s#" + encoded;`;
+
 const Section: React.FC<{
   icon: React.ReactNode;
   title: string;
@@ -134,6 +146,25 @@ const ApiDocs: React.FC = () => (
         <p className="text-xs text-gray-400 mt-3">
           Za nalog za prenos dostupna su i polja platioca (<code>pn</code>, <code>pa</code>,{' '}
           <code>pc</code>, <code>pac</code>) i zaduženja (<code>dm</code>, <code>dr</code>).
+        </p>
+      </Section>
+
+      {/* Multiple slips */}
+      <Section icon={<Link2 size={22} />} title="Više uplatnica u jednom linku">
+        <p className="text-sm text-gray-600 mb-3">
+          Jedan link može da nosi i više uplatnica odjednom — na primer nekoliko računa
+          poslatih istom kupcu. Otvaranjem takvog linka, aplikacija ih prikazuje kao
+          numerisane stranice (1, 2, 3, ...) sa navigacijom, svaku sa svojim QR kodom.
+        </p>
+        <p className="text-sm text-gray-600 mb-3">
+          Umesto jednog kompaktnog objekta, enkodirajte objekat sa ključem{' '}
+          <code className="bg-gray-100 px-1.5 py-0.5 rounded">L</code> čija je vrednost niz
+          kompaktnih objekata (svaki u istom formatu kao za jednu uplatnicu):
+        </p>
+        <CodeBlock>{multiSlipJsExample}</CodeBlock>
+        <p className="text-xs text-gray-400 mt-3">
+          Link sa jednom uplatnicom ostaje u starom, "ravnom" obliku (bez <code>L</code>) —
+          format se ne menja za postojeće integracije.
         </p>
       </Section>
 

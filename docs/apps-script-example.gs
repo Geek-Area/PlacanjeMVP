@@ -73,6 +73,54 @@ function buildPaymentLink(payment) {
 }
 
 /**
+ * Vraća share URL za VIŠE uplatnica odjednom (npr. ceo račun sa više stavki).
+ * Otvaranjem linka korisnik vidi uplatnice kao stranice (1, 2, 3, ...) sa
+ * navigacijom, svaku sa svojim QR kodom.
+ *
+ * @param {Object[]} payments niz objekata istog oblika kao u buildPaymentLink().
+ * @return {string} npr. https://placanje.rs/s#<kod>
+ */
+function buildMultiPaymentLink(payments) {
+  var appUrl = PropertiesService.getScriptProperties().getProperty('APP_URL') || 'https://placanje.rs';
+
+  var compactList = payments.map(function (payment) {
+    var receiverName = String(payment.receiverName || '').trim();
+    if (!receiverName) {
+      throw new Error('receiverName je obavezan.');
+    }
+    var accountDigits = String(payment.receiverAccount || '').replace(/[^0-9]/g, '');
+    if (accountDigits.length !== 18) {
+      throw new Error('receiverAccount mora imati tačno 18 cifara (uneto: ' + accountDigits.length + ').');
+    }
+    var amount = String(payment.amount || '').trim();
+    var amountNum = amount.indexOf(',') !== -1 ? amount.replace(/\./g, '').replace(',', '.') : amount;
+    if (!(parseFloat(amountNum) > 0)) {
+      throw new Error('amount mora biti veći od 0 (npr. "1.234,56" ili "1234.56").');
+    }
+
+    var compact = {};
+    Object.keys(FIELD_MAP).forEach(function (field) {
+      var value = payment[field];
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        compact[FIELD_MAP[field]] = String(value);
+      }
+    });
+    if (String(payment.formType || 'uplata') === 'prenos') {
+      compact.t = 'prenos';
+    }
+    return compact;
+  });
+
+  // Više uplatnica putuje pod ključem "L"; jedna uplatnica ostaje u starom,
+  // "ravnom" obliku (bez "L") radi kompatibilnosti sa postojećim linkovima.
+  var json = compactList.length === 1
+    ? JSON.stringify(compactList[0])
+    : JSON.stringify({ L: compactList });
+  var encoded = Utilities.base64EncodeWebSafe(json, Utilities.Charset.UTF_8).replace(/=+$/, '');
+  return appUrl.replace(/\/+$/, '') + '/s#' + encoded;
+}
+
+/**
  * Primer: kreira link i šalje email sa uplatnicom.
  */
 function sendInvoiceEmail() {
@@ -99,5 +147,31 @@ function sendInvoiceEmail() {
         '<a href="' + url + '">' + url + '</a><br><br>' +
         'Srdačan pozdrav'
     }
+  );
+}
+
+/**
+ * Primer: kreira link sa VIŠE uplatnica (npr. za više računa istom kupcu).
+ */
+function sendMultiInvoiceEmail() {
+  var url = buildMultiPaymentLink([
+    {
+      receiverName: 'Moja Firma d.o.o.',
+      receiverAccount: '160-0000000012345-78',
+      amount: '1.234,56',
+      purpose: 'Racun 2026-001'
+    },
+    {
+      receiverName: 'Moja Firma d.o.o.',
+      receiverAccount: '160-0000000012345-78',
+      amount: '2.500,00',
+      purpose: 'Racun 2026-002'
+    }
+  ]);
+
+  GmailApp.sendEmail(
+    'kupac@example.com',
+    'Uplatnice — 2 računa',
+    'Poštovani,\n\nUplatnice sa IPS QR kodom otvorite ovde: ' + url + '\n\nSrdačan pozdrav'
   );
 }

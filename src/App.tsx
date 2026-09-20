@@ -3,6 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Toaster, toast } from 'react-hot-toast';
 import html2canvas from 'html2canvas';
 import domtoimage from 'dom-to-image-more';
+import JSZip from 'jszip';
 import { PaymentData, FormType } from "@/types";
 import {
   generateIPSString,
@@ -13,7 +14,9 @@ import {
 } from "@/utils/ipsGenerator";
 import PaymentSlip from "@/components/PaymentSlip";
 import Footer from "@/components/Footer";
-import { encodeSlipData } from "@/utils/slipLink";
+import OrderTabs from "@/components/OrderTabs";
+import { encodeSlipsData } from "@/utils/slipLink";
+import { sanitizeFilename, svgToPngBlob, captureSlipElementToPngBlob, downloadBlob } from "@/utils/downloadHelpers";
 import {
   CreditCard,
   CheckCircle2,
@@ -38,26 +41,74 @@ interface SavedSlip {
   formType: FormType;
 }
 
+interface Order {
+  formType: FormType;
+  data: PaymentData;
+}
+
+const createEmptyPaymentData = (): PaymentData => ({
+  payerName: "",
+  payerAddress: "",
+  payerCity: "",
+  payerAccount: "",
+  purpose: "",
+  receiverName: "",
+  receiverAddress: "",
+  receiverCity: "",
+  receiverAccount: "",
+  paymentCode: "189",
+  currency: "RSD",
+  amount: "",
+  model: "",
+  reference: "",
+  debitModel: "",
+  debitReference: "",
+});
+
+const createEmptyOrder = (): Order => ({
+  formType: 'uplata',
+  data: createEmptyPaymentData(),
+});
+
 const App: React.FC = () => {
-  const [formType, setFormType] = useState<FormType>('uplata');
-  const [formData, setFormData] = useState<PaymentData>({
-    payerName: "",
-    payerAddress: "",
-    payerCity: "",
-    payerAccount: "",
-    purpose: "",
-    receiverName: "",
-    receiverAddress: "",
-    receiverCity: "",
-    receiverAccount: "",
-    paymentCode: "189",
-    currency: "RSD",
-    amount: "",
-    model: "",
-    reference: "",
-    debitModel: "",
-    debitReference: "",
-  });
+  const [orders, setOrders] = useState<Order[]>([createEmptyOrder()]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const formType = orders[activeIndex].formType;
+  const formData = orders[activeIndex].data;
+
+  // Update the currently active order's payment data
+  const setFormData = (updater: PaymentData | ((prev: PaymentData) => PaymentData)) => {
+    setOrders((prev) =>
+      prev.map((order, index) =>
+        index === activeIndex
+          ? { ...order, data: typeof updater === 'function' ? (updater as (p: PaymentData) => PaymentData)(order.data) : updater }
+          : order
+      )
+    );
+  };
+
+  const setFormType = (type: FormType) => {
+    setOrders((prev) =>
+      prev.map((order, index) => (index === activeIndex ? { ...order, formType: type } : order))
+    );
+  };
+
+  const handleAddOrder = () => {
+    setOrders((prev) => [...prev, createEmptyOrder()]);
+    setActiveIndex(orders.length);
+  };
+
+  const handleRemoveOrder = (index: number) => {
+    if (orders.length <= 1) return;
+    const next = orders.filter((_, i) => i !== index);
+    setOrders(next);
+    setActiveIndex((current) => {
+      if (index < current) return current - 1;
+      if (index === current) return Math.min(current, next.length - 1);
+      return current;
+    });
+  };
 
   const [qrString, setQrString] = useState<string | null>(null);
   const [savedSlips, setSavedSlips] = useState<SavedSlip[]>(() => {
@@ -120,9 +171,9 @@ const App: React.FC = () => {
   };
 
   // Validate if QR code is truly valid and return validation status
-  const getValidationStatus = () => {
+  const getValidationStatus = (data: PaymentData = formData) => {
     // If no input yet, return waiting status
-    if (!formData.receiverAccount && !formData.receiverName && !formData.purpose && !formData.amount) {
+    if (!data.receiverAccount && !data.receiverName && !data.purpose && !data.amount) {
       return {
         isValid: false,
         showError: false,
@@ -132,7 +183,7 @@ const App: React.FC = () => {
     }
 
     // Check receiver account (must be exactly 18 digits)
-    const cleanAccount = formData.receiverAccount.replace(/[^0-9]/g, "");
+    const cleanAccount = data.receiverAccount.replace(/[^0-9]/g, "");
     if (cleanAccount.length > 0 && cleanAccount.length !== 18) {
       return {
         isValid: false,
@@ -143,7 +194,7 @@ const App: React.FC = () => {
     }
 
     // Check receiver name
-    if (!formData.receiverName || formData.receiverName.trim() === "") {
+    if (!data.receiverName || data.receiverName.trim() === "") {
       return {
         isValid: false,
         showError: true,
@@ -163,7 +214,7 @@ const App: React.FC = () => {
     }
 
     // Check if amount is filled and valid
-    if (!formData.amount) {
+    if (!data.amount) {
       return {
         isValid: false,
         showError: true,
@@ -172,7 +223,7 @@ const App: React.FC = () => {
       };
     }
 
-    const parsedAmount = parseAmountValue(formData.amount);
+    const parsedAmount = parseAmountValue(data.amount);
     if (parsedAmount === null || parsedAmount <= 0) {
       return {
         isValid: false,
@@ -182,7 +233,7 @@ const App: React.FC = () => {
       };
     }
 
-    if (formData.model === "97" && formData.reference.trim() && !validateModel97(formData.reference)) {
+    if (data.model === "97" && data.reference.trim() && !validateModel97(data.reference)) {
       return {
         isValid: false,
         showError: true,
@@ -333,7 +384,52 @@ const App: React.FC = () => {
     }
   };
 
+  // When sharing/zipping several slips, an invalid one blocks the whole batch —
+  // report which page is invalid and jump there.
+  const requireAllOrdersValid = (actionLabel: string): boolean => {
+    const invalidIndex = orders.findIndex((order) => !getValidationStatus(order.data).isValid);
+    if (invalidIndex === -1) return true;
+    toast.error(`Popunite sve obavezne podatke za uplatnicu ${invalidIndex + 1} pre ${actionLabel}`, {
+      duration: 2500,
+      position: 'bottom-center',
+    });
+    setActiveIndex(invalidIndex);
+    return false;
+  };
+
+  const handleDownloadAllQr = async () => {
+    if (!requireAllOrdersValid('preuzimanja')) return;
+
+    try {
+      const zip = new JSZip();
+      for (let i = 0; i < orders.length; i++) {
+        const svg = document.querySelector<SVGSVGElement>(`#qr-code-page-${i} svg`);
+        if (!svg) continue;
+        const blob = await svgToPngBlob(svg);
+        const label = sanitizeFilename(orders[i].data.receiverName, `Uplata-${i + 1}`);
+        zip.file(`IPS-QR-${i + 1}-${label}.png`, blob);
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(zipBlob, 'IPS-QR-kodovi.zip');
+      toast.success('QR kodovi preuzeti kao ZIP!', {
+        duration: 2000,
+        position: 'bottom-center',
+      });
+    } catch (error) {
+      console.error('ZIP download error:', error);
+      toast.error('Greška pri preuzimanju QR kodova', {
+        duration: 2000,
+        position: 'bottom-center',
+      });
+    }
+  };
+
   const handleDownload = () => {
+    if (orders.length > 1) {
+      handleDownloadAllQr();
+      return;
+    }
+
     const svg = document.getElementById("ips-qr-code");
     if (svg) {
       const svgData = new XMLSerializer().serializeToString(svg);
@@ -360,103 +456,47 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDownloadAllSlips = async () => {
+    if (!requireAllOrdersValid('preuzimanja')) return;
+
+    try {
+      const zip = new JSZip();
+      for (let i = 0; i < orders.length; i++) {
+        const element = document.getElementById(`payment-slip-page-${i}`);
+        if (!element) continue;
+        const blob = await captureSlipElementToPngBlob(element);
+        const prefix = orders[i].formType === 'prenos' ? 'Prenos' : 'Uplatnica';
+        const label = sanitizeFilename(orders[i].data.receiverName, `Nalog-${i + 1}`);
+        zip.file(`${prefix}-${i + 1}-${label}.png`, blob);
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(zipBlob, 'Uplatnice.zip');
+      toast.success('Uplatnice preuzete kao ZIP!', {
+        duration: 2000,
+        position: 'bottom-center',
+      });
+    } catch (error) {
+      console.error('ZIP download error:', error);
+      toast.error('Greška pri preuzimanju uplatnica', {
+        duration: 2000,
+        position: 'bottom-center',
+      });
+    }
+  };
+
   const handleDownloadPaymentSlip = async () => {
+    if (orders.length > 1) {
+      await handleDownloadAllSlips();
+      return;
+    }
+
     const element = document.getElementById("payment-slip");
     if (!element) return;
 
     try {
-      // Clone the payment slip element
-      const clone = element.cloneNode(true) as HTMLElement;
-      clone.id = "payment-slip-clone";
-
-      // Create a container for the clone
-      const container = document.createElement("div");
-      container.style.position = "fixed";
-      container.style.top = "0";
-      container.style.left = "0";
-      container.style.zIndex = "-1";
-      container.style.opacity = "0";
-      container.style.pointerEvents = "none";
-
-      // Append clone to container, then container to body
-      container.appendChild(clone);
-      document.body.appendChild(container);
-
-      // Replace all inputs with divs to fix html2canvas rendering issues
-      const inputs = clone.querySelectorAll("input");
-      inputs.forEach((input) => {
-        const div = document.createElement("div");
-        const value = document.createElement("span");
-        value.textContent = input.value;
-        value.style.display = "block";
-        value.style.transform = "translateY(-6px)";
-        div.appendChild(value);
-        const inputStyle = getComputedStyle(input);
-
-        // Match input styling exactly
-        div.style.border = "2px solid #000";
-        div.style.fontSize = inputStyle.fontSize;
-        div.style.padding = "2px";
-        div.style.width = "100%";
-        div.style.height = inputStyle.height;
-        div.style.boxSizing = "border-box";
-        div.style.display = "flex";
-        div.style.alignItems = "center";
-        div.style.lineHeight = inputStyle.lineHeight;
-        div.style.fontFamily = "Arial, sans-serif";
-        div.style.backgroundColor = "#ffffff";
-
-        input.parentNode?.replaceChild(div, input);
-      });
-
-      // Replace all textareas with divs
-      const textareas = clone.querySelectorAll("textarea");
-      textareas.forEach((textarea) => {
-        const div = document.createElement("div");
-        div.textContent = textarea.value;
-        const textareaStyle = getComputedStyle(textarea);
-
-        // Match textarea styling exactly
-        div.style.border = "1px solid #000";
-        div.style.fontSize = textareaStyle.fontSize;
-        div.style.padding = "2px";
-        div.style.width = "100%";
-        div.style.height = textareaStyle.height;
-        div.style.boxSizing = "border-box";
-        div.style.display = "block";
-        div.style.whiteSpace = "pre-line";
-        div.style.lineHeight = textareaStyle.lineHeight;
-        div.style.fontFamily = "Arial, sans-serif";
-        div.style.backgroundColor = "#ffffff";
-
-        textarea.parentNode?.replaceChild(div, textarea);
-      });
-
-      clone.querySelectorAll<HTMLElement>(".form-group label").forEach((label) => {
-        label.style.transform = "translateY(-2px)";
-      });
-
-      // Wait briefly for DOM to update
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Capture the clone with html2canvas
-      const canvas = await html2canvas(clone, {
-        scale: 3,
-        backgroundColor: '#ffffff',
-        logging: false,
-        useCORS: true,
-      });
-
-      // Remove the container
-      document.body.removeChild(container);
-
-      // Download the PNG
-      const pngFile = canvas.toDataURL("image/png");
-      const downloadLink = document.createElement("a");
+      const blob = await captureSlipElementToPngBlob(element);
       const dlPrefix = formType === 'prenos' ? 'Prenos' : 'Uplatnica';
-      downloadLink.download = `${dlPrefix}-${formData.receiverName || "Nalog"}.png`;
-      downloadLink.href = pngFile;
-      downloadLink.click();
+      downloadBlob(blob, `${dlPrefix}-${formData.receiverName || "Nalog"}.png`);
 
       toast.success('Uplatnica sačuvana!', {
         duration: 2000,
@@ -472,18 +512,11 @@ const App: React.FC = () => {
   };
 
   const handleShare = async () => {
-    const validation = getValidationStatus();
-    if (!validation.isValid) {
-      toast.error('Popunite sve obavezne podatke pre deljenja', {
-        duration: 2000,
-        position: 'bottom-center',
-      });
-      return;
-    }
+    if (!requireAllOrdersValid('deljenja')) return;
 
     // Stateless link: all slip data is encoded into the URL fragment — no server,
     // no database, no expiry. The fragment never reaches the server.
-    const shareUrl = `${window.location.origin}/s#${encodeSlipData(formData, formType)}`;
+    const shareUrl = `${window.location.origin}/s#${encodeSlipsData(orders)}`;
 
     // Copy to clipboard with fallback for non-HTTPS contexts
     try {
@@ -513,6 +546,8 @@ const App: React.FC = () => {
       window.prompt('Kopirajte link:', shareUrl);
     }
   };
+
+  const allOrdersValid = orders.every((order) => getValidationStatus(order.data).isValid);
 
   // Helper for input classes to keep JSX clean
   const inputClass =
@@ -568,6 +603,18 @@ const App: React.FC = () => {
                   ? 'Popunite podatke o plaćanju da biste generisali NBS IPS QR kod.'
                   : 'Popunite podatke za prenos sredstava između računa.'}
               </p>
+              <div className="flex items-center gap-3 mt-4 ml-14">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Uplatnice
+                </span>
+                <OrderTabs
+                  count={orders.length}
+                  activeIndex={activeIndex}
+                  onSelect={setActiveIndex}
+                  onAdd={handleAddOrder}
+                  onRemove={handleRemoveOrder}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -944,10 +991,24 @@ const App: React.FC = () => {
 
         {/* Payment Slip Display */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <FileText size={24} className="text-blue-600" />
-            {formType === 'uplata' ? 'Uplatnica' : 'Nalog za prenos'}
-          </h2>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <FileText size={24} className="text-blue-600" />
+              {formType === 'uplata' ? 'Uplatnica' : 'Nalog za prenos'}
+              {orders.length > 1 && (
+                <span className="text-sm font-normal text-gray-400">
+                  (stranica {activeIndex + 1} od {orders.length})
+                </span>
+              )}
+            </h2>
+            <OrderTabs
+              count={orders.length}
+              activeIndex={activeIndex}
+              onSelect={setActiveIndex}
+              onAdd={handleAddOrder}
+              onRemove={handleRemoveOrder}
+            />
+          </div>
           <div className="bg-gray-50 rounded-xl p-4 flex justify-center">
             <PaymentSlip data={formData} qrString={qrString} formType={formType} />
           </div>
@@ -957,38 +1018,38 @@ const App: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
             onClick={handleDownload}
-            disabled={!getValidationStatus().isValid}
+            disabled={!allOrdersValid}
             className={`py-4 px-6 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg
               ${
-                getValidationStatus().isValid
+                allOrdersValid
                   ? "bg-blue-600 text-white hover:bg-blue-700 active:scale-95 cursor-pointer"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed opacity-50"
               }`}
           >
             <Download size={20} />
-            Sačuvaj QR
+            {orders.length > 1 ? 'Sačuvaj QR (ZIP)' : 'Sačuvaj QR'}
           </button>
 
           <button
             onClick={handleDownloadPaymentSlip}
-            disabled={!getValidationStatus().isValid}
+            disabled={!allOrdersValid}
             className={`py-4 px-6 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg
               ${
-                getValidationStatus().isValid
+                allOrdersValid
                   ? "bg-green-600 text-white hover:bg-green-700 active:scale-95 cursor-pointer"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed opacity-50"
               }`}
           >
             <FileText size={20} />
-            Preuzmi Uplatnicu
+            {orders.length > 1 ? 'Preuzmi Uplatnice (ZIP)' : 'Preuzmi Uplatnicu'}
           </button>
 
           <button
             onClick={handleShare}
-            disabled={!getValidationStatus().isValid}
+            disabled={!allOrdersValid}
             className={`py-4 px-6 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg
               ${
-                getValidationStatus().isValid
+                allOrdersValid
                   ? "bg-purple-600 text-white hover:bg-purple-700 active:scale-95 cursor-pointer"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed opacity-50"
               }`}
@@ -1040,6 +1101,18 @@ const App: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <div className="text-center">
             <h2 className="text-xl font-bold text-gray-800 mb-4">NBS IPS QR Kod</h2>
+
+            {orders.length > 1 && (
+              <div className="flex items-center justify-center gap-1.5 mb-4">
+                <OrderTabs
+                  count={orders.length}
+                  activeIndex={activeIndex}
+                  onSelect={setActiveIndex}
+                  onAdd={handleAddOrder}
+                  onRemove={handleRemoveOrder}
+                />
+              </div>
+            )}
 
             {/* Validation Status */}
             <div className="mb-6">
@@ -1094,6 +1167,31 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Off-screen mirror of every uplatnica, used only to build the ZIP when
+          downloading multiple slips/QR codes at once. */}
+      {orders.length > 1 && (
+        <div
+          aria-hidden="true"
+          style={{ position: 'fixed', top: 0, left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        >
+          {orders.map((order, index) => {
+            const pageQrString = generateIPSString(order.data);
+            return (
+              <React.Fragment key={index}>
+                <div id={`payment-slip-page-${index}`}>
+                  <PaymentSlip data={order.data} qrString={pageQrString} formType={order.formType} />
+                </div>
+                {pageQrString && (
+                  <div id={`qr-code-page-${index}`}>
+                    <QRCodeSVG value={pageQrString} size={300} level="M" includeMargin={true} />
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
 
       <Footer />
     </div>

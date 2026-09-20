@@ -12,6 +12,7 @@
     "@vercel/analytics": "^1.6.1",
     "dom-to-image-more": "^3.7.2",
     "html2canvas": "^1.4.1",
+    "jszip": "^3.10.2",
     "lucide-react": "^0.561.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.3",

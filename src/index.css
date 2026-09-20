@@ -6,6 +6,7 @@
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
+  zoom: 80%;
 }
 
 /* Custom scrollbar (migrated from index.html) */
