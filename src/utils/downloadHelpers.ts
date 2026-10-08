@@ -83,7 +83,11 @@ export const captureSlipElementToPngBlob = async (source: HTMLElement): Promise<
 
     clone.querySelectorAll('textarea').forEach((textarea) => {
       const div = document.createElement('div');
-      div.textContent = textarea.value;
+      const value = document.createElement('span');
+      value.textContent = textarea.value;
+      value.style.display = 'block';
+      value.style.transform = 'translateY(-3px)';
+      div.appendChild(value);
       const textareaStyle = getComputedStyle(textarea);
 
       div.style.border = '1px solid #000';
@@ -112,6 +116,13 @@ export const captureSlipElementToPngBlob = async (source: HTMLElement): Promise<
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
+      // html2canvas doesn't support CSS `zoom` (body uses zoom: 80%): it measures
+      // word positions in zoomed coordinates but draws glyphs at full size, so
+      // words overlap. Reset zoom in html2canvas's own document clone only.
+      onclone: (doc) => {
+        doc.documentElement.style.zoom = '1';
+        doc.body.style.zoom = '1';
+      },
     });
 
     return await canvasToPngBlob(canvas);
