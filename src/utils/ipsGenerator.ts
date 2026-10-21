@@ -18,6 +18,27 @@ export const transliterate = (text: string): string => {
   return text.split('').map(char => cyrillicToLatinMap[char] || char).join('');
 };
 
+// Typographic characters the NBS IPS validator rejects in text fields (error 608),
+// typically introduced by pasting from Word/Sheets. Mapped to plain ASCII equivalents.
+const ipsCharReplacements: Record<string, string> = {
+  '—': '-', '–': '-', '‒': '-', '‐': '-', '‑': '-', '−': '-',
+  '“': '"', '”': '"', '„': '"', '«': '"', '»': '"',
+  '‘': "'", '’': "'", '‚': "'",
+  '…': '...',
+  ' ': ' ', ' ': ' ', ' ': ' ',
+};
+
+// Transliterate and replace characters not allowed by the NBS IPS standard.
+// Any '|' is replaced too, since it is the field separator in the QR string.
+export const sanitizeForIPS = (text: string): string => {
+  if (!text) return '';
+  return transliterate(text)
+    .split('')
+    .map(char => ipsCharReplacements[char] ?? char)
+    .join('')
+    .replace(/\|/g, '/');
+};
+
 export const formatBankAccount = (account: string): string => {
   // Remove all non-digit characters
   const cleaned = account.replace(/[^0-9]/g, '');
@@ -148,9 +169,9 @@ export const generateIPSString = (data: PaymentData): string | null => {
 
   const account = formatBankAccount(data.receiverAccount);
   // Receiver formatting: Name \n Address \n City
-  let receiverStr = transliterate(data.receiverName);
-  if (data.receiverAddress) receiverStr += '\n' + transliterate(data.receiverAddress);
-  if (data.receiverCity) receiverStr += '\n' + transliterate(data.receiverCity);
+  let receiverStr = sanitizeForIPS(data.receiverName);
+  if (data.receiverAddress) receiverStr += '\n' + sanitizeForIPS(data.receiverAddress);
+  if (data.receiverCity) receiverStr += '\n' + sanitizeForIPS(data.receiverCity);
   receiverStr = receiverStr.substring(0, 70);
 
   // Use formatAmountForQR for QR code (no thousand separators)
@@ -167,7 +188,7 @@ export const generateIPSString = (data: PaymentData): string | null => {
 
   // Add purpose only if provided (optional field)
   if (data.purpose && data.purpose.trim()) {
-    const purpose = transliterate(data.purpose).substring(0, 35);
+    const purpose = sanitizeForIPS(data.purpose).substring(0, 35);
     qrString += `|S:${purpose}`;
   }
 
