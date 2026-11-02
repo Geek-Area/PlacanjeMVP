@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Code2, Link2, KeyRound, FileCode2 } from 'lucide-react';
+import { ArrowLeft, Code2, Link2, KeyRound, FileCode2, AppWindow } from 'lucide-react';
 import Footer from '@/components/Footer';
 // Raw import keeps this page and the downloadable file as a single source of truth.
 import appsScriptExample from '../../docs/apps-script-example.gs?raw';
@@ -60,6 +60,12 @@ const link = await buildPaymentLink([
   ["u", "Moja Firma d.o.o.", "160000000012345678", "2500.00", "Racun 2026-002"]
 ]);`;
 
+const embedExample = `<iframe src="https://placanje.rs/e#2.<kod>"
+        style="width:100%;max-width:720px;height:420px;border:0"
+        title="Uplatnica — Plaćanje.rs" loading="lazy"></iframe>
+<!-- Opciono: podešava visinu okvira prema uplatnici -->
+<script src="https://placanje.rs/embed.js" async></script>`;
+
 const legacyExample = `const data = { rn: "Moja Firma d.o.o.", rac: "160000000012345678", am: "1234.56", pu: "Racun 2026-001" };
 const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))))
   .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
@@ -68,11 +74,12 @@ const link = "https://placanje.rs/s#" + encoded;
 // Više uplatnica u v1: { L: [ { ... }, { ... } ] }; nalog za prenos: dodati t: "prenos".`;
 
 const Section: React.FC<{
+  id?: string;
   icon: React.ReactNode;
   title: string;
   children: React.ReactNode;
-}> = ({ icon, title, children }) => (
-  <section className="bg-white rounded-2xl shadow-lg p-6 lg:p-8">
+}> = ({ id, icon, title, children }) => (
+  <section id={id} className="bg-white rounded-2xl shadow-lg p-6 lg:p-8 scroll-mt-4">
     <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
       <span className="text-blue-600">{icon}</span>
       {title}
@@ -186,6 +193,21 @@ const ApiDocs: React.FC = () => (
           dodaje svega 25–100 znakova:
         </p>
         <CodeBlock>{multiSlipJsExample}</CodeBlock>
+      </Section>
+
+      {/* Embed */}
+      <Section id="embed" icon={<AppWindow size={22} />} title="Embed na sajtu">
+        <p className="text-sm text-gray-600 mb-3">
+          Isti kod može da se prikaže i na vašem sajtu: zamenite <code>/s</code> sa <code>/e</code> i stavite
+          link u <code>&lt;iframe&gt;</code>. Prikazuje se samo uplatnica sa QR kodom (za više uplatnica, sa
+          tabovima), a na uskom ekranu samo QR kod, primalac, iznos i svrha. Kod za kopiranje daje i dugme
+          „Ugradi na sajt“ na početnoj strani.
+        </p>
+        <CodeBlock>{embedExample}</CodeBlock>
+        <p className="text-xs text-gray-400 mt-3">
+          Okvir ne čita ništa sa vaše stranice. Jedino što šalje nazad je visina sadržaja
+          (poruka <code>placanje-embed:height</code>), koju koristi <code>embed.js</code>.
+        </p>
       </Section>
 
       {/* Google Apps Script */}

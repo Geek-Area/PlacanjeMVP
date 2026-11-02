@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
 import App from '@/App';
 import ShareView from '@/components/ShareView';
+import EmbedView from '@/components/EmbedView';
 import ApiDocs from '@/components/ApiDocs';
 import '@/index.css';
 
@@ -19,6 +20,8 @@ root.render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/s" element={<ShareView />} />
+        {/* Bare slip for <iframe> embedding; the only route other sites may frame (vercel.json) */}
+        <Route path="/e" element={<EmbedView />} />
         {/* Legacy path — old links have no fragment and render the "invalid link" state */}
         <Route path="/share/:shareId" element={<ShareView />} />
         <Route path="/api" element={<ApiDocs />} />

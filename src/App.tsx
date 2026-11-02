@@ -16,6 +16,7 @@ import PaymentSlip from "@/components/PaymentSlip";
 import Footer from "@/components/Footer";
 import OrderTabs from "@/components/OrderTabs";
 import AutofillInput, { AutofillSuggestion } from "@/components/AutofillInput";
+import EmbedCodeDialog from "@/components/EmbedCodeDialog";
 import { encodeSlipsData } from "@/utils/slipLink";
 import {
   FieldHistory,
@@ -43,6 +44,7 @@ import {
   Save,
   Trash2,
   ArrowLeftRight,
+  Code2,
 } from "lucide-react";
 
 interface SavedSlip {
@@ -122,6 +124,7 @@ const App: React.FC = () => {
   };
 
   const [qrString, setQrString] = useState<string | null>(null);
+  const [embedCode, setEmbedCode] = useState<string | null>(null);
   const [savedSlips, setSavedSlips] = useState<SavedSlip[]>(() => {
     try {
       const stored = localStorage.getItem('savedSlips');
@@ -675,6 +678,18 @@ const App: React.FC = () => {
     }
   };
 
+  const handleEmbed = async () => {
+    if (!requireAllOrdersValid('ugradnje na sajt')) return;
+    rememberValidOrders();
+
+    const encoded = await encodeSlipsData(orders);
+    const origin = window.location.origin;
+    setEmbedCode(
+      `<iframe src="${origin}/e#${encoded}" style="width:100%;max-width:720px;height:420px;border:0" title="Uplatnica — Plaćanje.rs" loading="lazy"></iframe>\n` +
+        `<script src="${origin}/embed.js" async></script>`
+    );
+  };
+
   const allOrdersValid = orders.every((order) => getValidationStatus(order.data).isValid);
 
   // Helper for input classes to keep JSX clean
@@ -686,6 +701,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 p-4 lg:p-8 font-sans">
       <Toaster />
+      {embedCode && <EmbedCodeDialog code={embedCode} onClose={() => setEmbedCode(null)} />}
 
       {/* Main Container - Vertical Layout */}
       <div className="w-full max-w-7xl mx-auto space-y-6">
@@ -1192,6 +1208,17 @@ const App: React.FC = () => {
           >
             <Share2 size={20} />
             Podeli
+          </button>
+        </div>
+
+        <div className="flex justify-end -mt-2">
+          <button
+            onClick={handleEmbed}
+            disabled={!allOrdersValid}
+            className="text-sm text-gray-500 hover:text-blue-600 disabled:opacity-50 disabled:hover:text-gray-500 flex items-center gap-1"
+          >
+            <Code2 size={16} />
+            Ugradi na sajt
           </button>
         </div>
 

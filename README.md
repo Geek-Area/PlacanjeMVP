@@ -60,6 +60,7 @@ npm run preview
 | --- | --- |
 | `/` | Forma za kreiranje uplatnica, QR kod, istorija, deljenje i preuzimanje |
 | `/s#<kod>` | Prikaz podeljene uplatnice (ili više njih) iz linka |
+| `/e#<kod>` | Ista uplatnica bez okvira stranice, za `<iframe>` na drugim sajtovima (jedina ruta koju drugi sajtovi smeju da uokvire); `/embed.js` podešava visinu okvira |
 | `/share/:id` | Stari Supabase linkovi — prikazuju poruku da link nije važeći |
 | `/api` | Dokumentacija formata linka za integracije |
 
@@ -96,6 +97,8 @@ src/
   components/
     PaymentSlip.tsx        izgled uplatnice / naloga za prenos
     ShareView.tsx          stranica za otvaranje podeljenog linka
+    EmbedView.tsx          uplatnica za <iframe> (/e)
+    EmbedCodeDialog.tsx    kod za ugradnju na sajt
     OrderTabs.tsx          tabovi za više uplatnica
     ApiDocs.tsx            dokumentacija formata linka (/api)
     Footer.tsx
