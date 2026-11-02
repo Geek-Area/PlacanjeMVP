@@ -16,7 +16,7 @@ Produkcija: <https://placanje.rs>
   - šifra plaćanja se za QR uvećava za 100 po NBS standardu (189 → 289),
   - tekstualna polja se transliteruju i čiste od tipografskih znakova koje banke odbijaju.
 - **Više uplatnica u jednoj sesiji** — tabovi za dodavanje/brisanje uplatnica; sve idu kroz jedan link.
-- **Stateless linkovi za deljenje** — podaci su enkodirani u URL fragmentu (`/s#<kod>`), pa nema baze ni servera, a podaci ne stižu do servera ni do logova. Link ne ističe.
+- **Stateless linkovi za deljenje** — podaci su kompresovani i enkodirani u URL fragmentu (`/s#2.<kod>`), pa nema baze ni servera, a podaci ne stižu do servera ni do logova. Link ne ističe.
 - **Preuzimanje** — QR kod (PNG) ili cela uplatnica (PNG); za više uplatnica ZIP arhiva.
 - **Lokalno čuvanje** — sačuvane uplatnice se čuvaju u `localStorage` pregledača (istorija sa učitavanjem i brisanjem).
 - **Javni „API“ za linkove** — stranica [`/api`](https://placanje.rs/api) opisuje format, pa link može da napravi bilo koji sistem (npr. Google Apps Script — primer u [`docs/apps-script-example.gs`](docs/apps-script-example.gs)).
@@ -65,19 +65,27 @@ npm run preview
 
 ## Format linka
 
-Uplatnica se pretvara u kompaktan JSON sa skraćenim ključevima (`rn` = naziv primaoca, `rac` = račun, `am` = iznos …),
-zatim u UTF-8 base64url i stavlja iza `#`:
+Aplikacija pravi **v2** linkove:
 
 ```
-https://placanje.rs/s#<base64url(JSON)>
+https://placanje.rs/s#2.<base64url(DEFLATE(JSON))>
 ```
 
-- jedna uplatnica: `{ "rn": "...", "rac": "...", "am": "1234.56", ... }`
-- više uplatnica: `{ "L": [ { ... }, { ... } ] }`
-- nalog za prenos: dodaje se `"t": "prenos"`
+- JSON je niz vrednosti po fiksnom redosledu polja, sa tipom na početku: `["u", "Naziv primaoca", "160000000012345678", "1234.56", ...]` (`u` = uplata, `p` = nalog za prenos); prazna polja na kraju se izostavljaju, a podrazumevane vrednosti `189` i `RSD` se ne upisuju.
+- više uplatnica: niz takvih nizova, `[["u", ...], ["p", ...]]`;
+- kompresija je raw DEFLATE preko ugrađenog `CompressionStream`; dekoder prihvata i GZIP (npr. `Utilities.gzip` iz Apps Script-a).
 
-Puna lista ključeva je u [`src/utils/slipLink.ts`](src/utils/slipLink.ts) i na stranici `/api`.
-**Mapa ključeva postoji i u [`docs/apps-script-example.gs`](docs/apps-script-example.gs) — ako se menja na jednom mestu, mora i na drugom**, inače stari linkovi i integracije prestaju da rade.
+Link je 25–45% kraći od starog formata za jednu uplatnicu, a 55–90% za više njih.
+**Stari (v1) linkovi** — base64url nekompresovanog JSON-a sa skraćenim ključevima (`{ "rn": ..., "rac": ... }`, odnosno `{ "L": [...] }`) — i dalje se otvaraju.
+
+Redosled polja (`V2_FIELD_ORDER`) i v1 ključevi su u [`src/utils/slipLink.ts`](src/utils/slipLink.ts) i na stranici `/api`.
+**Isti redosled postoji i u [`docs/apps-script-example.gs`](docs/apps-script-example.gs) — to je javni format: polja se ne preuređuju niti preimenuju, samo se dodaju na kraj**, inače postojeći linkovi i integracije prestaju da rade.
+
+Testovi za kodiranje linkova (Node 22.6+):
+
+```bash
+npm test
+```
 
 ## Struktura projekta
 
