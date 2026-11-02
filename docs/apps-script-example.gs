@@ -8,39 +8,36 @@
  * PODEŠAVANJE (Apps Script editor -> Project Settings -> Script Properties):
  *   APP_URL = https://placanje.rs
  *
+ * FORMAT (v2): /s#2.<kod>, gde je <kod> = Base64URL( GZIP( JSON ) ), a JSON je
+ * niz vrednosti po fiksnom redosledu V2_FIELD_ORDER ispod, sa tipom na početku:
+ *   jedna uplatnica:  ["u", "Moja Firma d.o.o.", "160000000012345678", "1234.56", ...]
+ *   više uplatnica:   [["u", ...], ["p", ...]]
+ * ("u" = uplata, "p" = nalog za prenos; prazna polja na kraju se izostavljaju.)
+ *
  * NAPOMENE:
  *  - amount je string; prihvata se "1234.56" ili "1.234,56".
  *  - paymentCode je osnovna šifra (npr. "189"); aplikacija dodaje +100 za QR
- *    po NBS standardu (189 -> 289).
+ *    po NBS standardu (189 -> 289). Prazno = 189.
  *  - Za model "97", reference mora sadržati i kontrolne cifre.
  *  - Link ne ističe i ne kreira nikakav zapis u bazi.
+ *  - Stari (v1) linkovi, Base64URL nekompresovanog JSON-a sa skraćenim
+ *    ključevima, i dalje rade, ali su znatno duži.
  *
- * Skraćeni ključevi ispod moraju odgovarati mapi u src/utils/slipLink.ts.
+ * Redosled polja mora odgovarati V2_FIELD_ORDER u src/utils/slipLink.ts.
  */
 
-// "Lepi" naziv polja -> skraćeni ključ koji čita aplikacija.
-var FIELD_MAP = {
-  payerName: 'pn', payerAddress: 'pa', payerCity: 'pc', payerAccount: 'pac',
-  purpose: 'pu',
-  receiverName: 'rn', receiverAddress: 'ra', receiverCity: 'rc', receiverAccount: 'rac',
-  paymentCode: 'sf', currency: 'cur', amount: 'am',
-  model: 'mo', reference: 're',
-  debitModel: 'dm', debitReference: 'dr'
-};
+// Redosled polja u v2 formatu — javni format, ne sme se menjati (samo dopunjavati).
+var V2_FIELD_ORDER = [
+  'receiverName', 'receiverAccount', 'amount', 'purpose',
+  'model', 'reference', 'paymentCode',
+  'receiverAddress', 'receiverCity',
+  'payerName', 'payerAddress', 'payerCity', 'payerAccount',
+  'debitModel', 'debitReference', 'currency'
+];
 
-/**
- * Vraća share URL za dati objekat uplatnice.
- * Obavezno: receiverName, receiverAccount, amount.
- * Opciono: purpose, paymentCode, model, reference, receiverAddress, receiverCity,
- *          currency, formType ('prenos' za nalog za prenos) i payer/debit polja.
- *
- * @param {Object} payment
- * @return {string} npr. https://placanje.rs/s#<kod>
- */
-function buildPaymentLink(payment) {
-  var appUrl = PropertiesService.getScriptProperties().getProperty('APP_URL') || 'https://placanje.rs';
-
-  // Validacija (ista pravila kao u aplikaciji) — greška pukne ovde, a ne kao QR bez sadržaja.
+// Validacija (ista pravila kao u aplikaciji) i pretvaranje jedne uplatnice u
+// niz vrednosti — greška pukne ovde, a ne kao QR bez sadržaja.
+function toV2Values_(payment) {
   var receiverName = String(payment.receiverName || '').trim();
   if (!receiverName) {
     throw new Error('receiverName je obavezan.');
@@ -55,21 +52,48 @@ function buildPaymentLink(payment) {
     throw new Error('amount mora biti veći od 0 (npr. "1.234,56" ili "1234.56").');
   }
 
-  // Kompaktni objekat sa skraćenim ključevima; prazna polja se izostavljaju.
-  var compact = {};
-  Object.keys(FIELD_MAP).forEach(function (field) {
+  var values = V2_FIELD_ORDER.map(function (field) {
     var value = payment[field];
-    if (value !== undefined && value !== null && String(value).trim() !== '') {
-      compact[FIELD_MAP[field]] = String(value);
+    value = value === undefined || value === null ? '' : String(value).trim();
+    if (field === 'receiverAccount') {
+      return accountDigits; // bez crtica — kraći link
     }
+    // Podrazumevane vrednosti aplikacija sama dopuni.
+    if ((field === 'paymentCode' && value === '189') || (field === 'currency' && value === 'RSD')) {
+      return '';
+    }
+    return value;
   });
-  if (String(payment.formType || 'uplata') === 'prenos') {
-    compact.t = 'prenos';
+  while (values.length > 0 && values[values.length - 1] === '') {
+    values.pop();
   }
+  var type = String(payment.formType || 'uplata') === 'prenos' ? 'p' : 'u';
+  return [type].concat(values);
+}
 
-  var json = JSON.stringify(compact);
-  var encoded = Utilities.base64EncodeWebSafe(json, Utilities.Charset.UTF_8).replace(/=+$/, '');
-  return appUrl.replace(/\/+$/, '') + '/s#' + encoded;
+// JSON -> UTF-8 -> GZIP -> Base64URL, uz prefiks "2.".
+function encodeV2_(payload) {
+  var utf8 = Utilities.newBlob('').setDataFromString(JSON.stringify(payload), 'UTF-8');
+  var gzipped = Utilities.gzip(utf8).getBytes();
+  return '2.' + Utilities.base64EncodeWebSafe(gzipped).replace(/=+$/, '');
+}
+
+function appUrl_() {
+  var url = PropertiesService.getScriptProperties().getProperty('APP_URL') || 'https://placanje.rs';
+  return url.replace(/\/+$/, '');
+}
+
+/**
+ * Vraća share URL za dati objekat uplatnice.
+ * Obavezno: receiverName, receiverAccount, amount.
+ * Opciono: purpose, paymentCode, model, reference, receiverAddress, receiverCity,
+ *          currency, formType ('prenos' za nalog za prenos) i payer/debit polja.
+ *
+ * @param {Object} payment
+ * @return {string} npr. https://placanje.rs/s#2.<kod>
+ */
+function buildPaymentLink(payment) {
+  return appUrl_() + '/s#' + encodeV2_(toV2Values_(payment));
 }
 
 /**
@@ -78,46 +102,11 @@ function buildPaymentLink(payment) {
  * navigacijom, svaku sa svojim QR kodom.
  *
  * @param {Object[]} payments niz objekata istog oblika kao u buildPaymentLink().
- * @return {string} npr. https://placanje.rs/s#<kod>
+ * @return {string} npr. https://placanje.rs/s#2.<kod>
  */
 function buildMultiPaymentLink(payments) {
-  var appUrl = PropertiesService.getScriptProperties().getProperty('APP_URL') || 'https://placanje.rs';
-
-  var compactList = payments.map(function (payment) {
-    var receiverName = String(payment.receiverName || '').trim();
-    if (!receiverName) {
-      throw new Error('receiverName je obavezan.');
-    }
-    var accountDigits = String(payment.receiverAccount || '').replace(/[^0-9]/g, '');
-    if (accountDigits.length !== 18) {
-      throw new Error('receiverAccount mora imati tačno 18 cifara (uneto: ' + accountDigits.length + ').');
-    }
-    var amount = String(payment.amount || '').trim();
-    var amountNum = amount.indexOf(',') !== -1 ? amount.replace(/\./g, '').replace(',', '.') : amount;
-    if (!(parseFloat(amountNum) > 0)) {
-      throw new Error('amount mora biti veći od 0 (npr. "1.234,56" ili "1234.56").');
-    }
-
-    var compact = {};
-    Object.keys(FIELD_MAP).forEach(function (field) {
-      var value = payment[field];
-      if (value !== undefined && value !== null && String(value).trim() !== '') {
-        compact[FIELD_MAP[field]] = String(value);
-      }
-    });
-    if (String(payment.formType || 'uplata') === 'prenos') {
-      compact.t = 'prenos';
-    }
-    return compact;
-  });
-
-  // Više uplatnica putuje pod ključem "L"; jedna uplatnica ostaje u starom,
-  // "ravnom" obliku (bez "L") radi kompatibilnosti sa postojećim linkovima.
-  var json = compactList.length === 1
-    ? JSON.stringify(compactList[0])
-    : JSON.stringify({ L: compactList });
-  var encoded = Utilities.base64EncodeWebSafe(json, Utilities.Charset.UTF_8).replace(/=+$/, '');
-  return appUrl.replace(/\/+$/, '') + '/s#' + encoded;
+  var list = payments.map(toV2Values_);
+  return appUrl_() + '/s#' + encodeV2_(list.length === 1 ? list[0] : list);
 }
 
 /**

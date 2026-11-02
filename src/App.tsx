@@ -516,14 +516,28 @@ const App: React.FC = () => {
 
     // Stateless link: all slip data is encoded into the URL fragment — no server,
     // no database, no expiry. The fragment never reaches the server.
-    const shareUrl = `${window.location.origin}/s#${encodeSlipsData(orders)}`;
+    const shareUrlPromise = encodeSlipsData(orders).then(
+      (encoded) => `${window.location.origin}/s#${encoded}`
+    );
 
     // Copy to clipboard with fallback for non-HTTPS contexts
+    let shareUrl = '';
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
+      if (navigator.clipboard && typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
+        // Encoding is async (compression). Safari only allows the clipboard write
+        // within the click, so hand it a promise instead of awaiting first.
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/plain': shareUrlPromise.then((url) => new Blob([url], { type: 'text/plain' })),
+          }),
+        ]);
+        shareUrl = await shareUrlPromise;
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        shareUrl = await shareUrlPromise;
         await navigator.clipboard.writeText(shareUrl);
       } else {
         // Fallback for browsers/contexts without clipboard API
+        shareUrl = await shareUrlPromise;
         const textArea = document.createElement('textarea');
         textArea.value = shareUrl;
         textArea.style.position = 'fixed';
@@ -543,7 +557,7 @@ const App: React.FC = () => {
     } catch (clipboardError) {
       console.error('Clipboard error:', clipboardError);
       // Still show the link even if clipboard fails
-      window.prompt('Kopirajte link:', shareUrl);
+      window.prompt('Kopirajte link:', shareUrl || (await shareUrlPromise));
     }
   };
 

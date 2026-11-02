@@ -12,46 +12,60 @@ interface FieldRow {
   note: string;
 }
 
+// Listed in v2 order: the row index is the field's position in the v2 value array.
 const FIELDS: FieldRow[] = [
   { key: 'rn', name: 'receiverName', required: true, note: 'Naziv primaoca' },
   { key: 'rac', name: 'receiverAccount', required: true, note: 'Račun primaoca — 18 cifara (sa ili bez crtica)' },
   { key: 'am', name: 'amount', required: true, note: 'Iznos, npr. "1234.56" ili "1.234,56"' },
   { key: 'pu', name: 'purpose', required: false, note: 'Svrha plaćanja' },
-  { key: 'sf', name: 'paymentCode', required: false, note: 'Šifra plaćanja (podrazumevano 189)' },
   { key: 'mo', name: 'model', required: false, note: 'Model poziva na broj (npr. 97)' },
   { key: 're', name: 'reference', required: false, note: 'Poziv na broj (odobrenje)' },
+  { key: 'sf', name: 'paymentCode', required: false, note: 'Šifra plaćanja (prazno = 189)' },
   { key: 'ra', name: 'receiverAddress', required: false, note: 'Adresa primaoca' },
   { key: 'rc', name: 'receiverCity', required: false, note: 'Mesto primaoca' },
-  { key: 'cur', name: 'currency', required: false, note: 'Valuta (podrazumevano RSD)' },
-  { key: 't', name: 'form_type', required: false, note: '"prenos" za nalog za prenos (podrazumevano uplata)' },
+  { key: 'pn', name: 'payerName', required: false, note: 'Uplatilac' },
+  { key: 'pa', name: 'payerAddress', required: false, note: 'Adresa uplatioca' },
+  { key: 'pc', name: 'payerCity', required: false, note: 'Mesto uplatioca' },
+  { key: 'pac', name: 'payerAccount', required: false, note: 'Račun uplatioca (nalog za prenos)' },
+  { key: 'dm', name: 'debitModel', required: false, note: 'Model — zaduženje (nalog za prenos)' },
+  { key: 'dr', name: 'debitReference', required: false, note: 'Poziv na broj — zaduženje (nalog za prenos)' },
+  { key: 'cur', name: 'currency', required: false, note: 'Valuta (prazno = RSD)' },
 ];
 
-const jsExample = `const data = {
-  rn: "Moja Firma d.o.o.",
-  rac: "160000000012345 78".replace(/\\s/g, ""),
-  am: "1234.56",
-  pu: "Racun 2026-001",
-  sf: "189",
-  mo: "97",
-  re: "9712345678901"
-};
+const jsExample = `// Radi u pregledaču i u Node.js 18+ (ugrađen CompressionStream, bez biblioteka).
+async function buildPaymentLink(slips) {
+  const json = JSON.stringify(slips);
+  const stream = new Blob([json]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let binary = "";
+  bytes.forEach((b) => (binary += String.fromCharCode(b)));
+  const encoded = btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+  return "https://placanje.rs/s#2." + encoded;
+}
 
+// Jedna uplatnica: tip ("u" = uplata, "p" = prenos), pa vrednosti po redosledu iz tabele.
+const link = await buildPaymentLink([
+  "u",
+  "Moja Firma d.o.o.",     // 1 receiverName
+  "160000000012345678",    // 2 receiverAccount
+  "1234.56",               // 3 amount
+  "Racun 2026-001",        // 4 purpose
+  "97",                    // 5 model
+  "9712345678901"          // 6 reference
+]);`;
+
+const multiSlipJsExample = `// buildPaymentLink je iz JavaScript primera na dnu strane.
+const link = await buildPaymentLink([
+  ["u", "Moja Firma d.o.o.", "160000000012345678", "1234.56", "Racun 2026-001"],
+  ["u", "Moja Firma d.o.o.", "160000000012345678", "2500.00", "Racun 2026-002"]
+]);`;
+
+const legacyExample = `const data = { rn: "Moja Firma d.o.o.", rac: "160000000012345678", am: "1234.56", pu: "Racun 2026-001" };
 const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))))
   .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+const link = "https://placanje.rs/s#" + encoded;
 
-const link = "https://placanje.rs/s#" + encoded;`;
-
-const multiSlipJsExample = `const list = {
-  L: [
-    { rn: "Moja Firma d.o.o.", rac: "160000000012345678", am: "1234.56", pu: "Racun 2026-001" },
-    { rn: "Moja Firma d.o.o.", rac: "160000000012345678", am: "2500.00", pu: "Racun 2026-002" }
-  ]
-};
-
-const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(list))))
-  .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
-
-const link = "https://placanje.rs/s#" + encoded;`;
+// Više uplatnica u v1: { L: [ { ... }, { ... } ] }; nalog za prenos: dodati t: "prenos".`;
 
 const Section: React.FC<{
   icon: React.ReactNode;
@@ -102,14 +116,22 @@ const ApiDocs: React.FC = () => (
       {/* How it works */}
       <Section icon={<Link2 size={22} />} title="Format linka">
         <p className="text-sm text-gray-600 mb-3">
-          Link ima oblik <code className="bg-gray-100 px-1.5 py-0.5 rounded">https://placanje.rs/s#&lt;kod&gt;</code>,
-          gde je <code>&lt;kod&gt;</code> Base64URL enkodiran JSON objekat sa podacima uplatnice.
+          Link ima oblik <code className="bg-gray-100 px-1.5 py-0.5 rounded">https://placanje.rs/s#2.&lt;kod&gt;</code>.
           Otvaranjem linka aplikacija dekodira podatke i prikazuje uplatnicu sa QR kodom.
+          Podaci su kompresovani, pa je link 25–45% kraći za jednu uplatnicu, a 55–90% za više njih.
         </p>
         <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
-          <li>Napravite JSON objekat sa skraćenim ključevima (tabela ispod).</li>
-          <li>Enkodirajte ga kao UTF-8 → Base64URL (znaci <code>+/</code> → <code>-_</code>, bez <code>=</code> na kraju).</li>
-          <li>Dodajte ga kao fragment: <code>/s#&lt;kod&gt;</code>.</li>
+          <li>
+            Napravite JSON niz: prvo tip (<code>"u"</code> = uplata, <code>"p"</code> = nalog za prenos),
+            zatim vrednosti polja <strong>po redosledu iz tabele ispod</strong>. Prazna polja na kraju izostavite,
+            a prazna polja u sredini pišite kao <code>""</code>.
+          </li>
+          <li>
+            Kompresujte UTF-8 bajtove algoritmom <strong>DEFLATE (raw)</strong> ili <strong>GZIP</strong>,
+            šta god vaša platforma ima.
+          </li>
+          <li>Enkodirajte rezultat kao Base64URL (znaci <code>+/</code> → <code>-_</code>, bez <code>=</code> na kraju).</li>
+          <li>Dodajte ga kao fragment sa prefiksom <code>2.</code>: <code>/s#2.&lt;kod&gt;</code>.</li>
         </ol>
       </Section>
 
@@ -119,17 +141,19 @@ const ApiDocs: React.FC = () => (
           <table className="w-full text-sm text-left border-collapse">
             <thead>
               <tr className="text-gray-500 border-b border-gray-200">
-                <th className="py-2 pr-4 font-semibold">Ključ</th>
+                <th className="py-2 pr-4 font-semibold">#</th>
                 <th className="py-2 pr-4 font-semibold">Polje</th>
+                <th className="py-2 pr-4 font-semibold">v1 ključ</th>
                 <th className="py-2 pr-4 font-semibold">Obavezno</th>
                 <th className="py-2 font-semibold">Opis</th>
               </tr>
             </thead>
             <tbody>
-              {FIELDS.map((f) => (
+              {FIELDS.map((f, index) => (
                 <tr key={f.key} className="border-b border-gray-100">
-                  <td className="py-2 pr-4 font-mono text-blue-700">{f.key}</td>
+                  <td className="py-2 pr-4 font-mono text-gray-400">{index + 1}</td>
                   <td className="py-2 pr-4 font-mono text-gray-700">{f.name}</td>
+                  <td className="py-2 pr-4 font-mono text-blue-700">{f.key}</td>
                   <td className="py-2 pr-4">
                     {f.required ? (
                       <span className="text-red-600 font-medium">da</span>
@@ -144,8 +168,8 @@ const ApiDocs: React.FC = () => (
           </table>
         </div>
         <p className="text-xs text-gray-400 mt-3">
-          Za nalog za prenos dostupna su i polja platioca (<code>pn</code>, <code>pa</code>,{' '}
-          <code>pc</code>, <code>pac</code>) i zaduženja (<code>dm</code>, <code>dr</code>).
+          Redosled je deo formata i neće se menjati — nova polja se dodaju samo na kraj.
+          Kolona „v1 ključ“ važi za stari format (vidi dole).
         </p>
       </Section>
 
@@ -157,15 +181,11 @@ const ApiDocs: React.FC = () => (
           numerisane stranice (1, 2, 3, ...) sa navigacijom, svaku sa svojim QR kodom.
         </p>
         <p className="text-sm text-gray-600 mb-3">
-          Umesto jednog kompaktnog objekta, enkodirajte objekat sa ključem{' '}
-          <code className="bg-gray-100 px-1.5 py-0.5 rounded">L</code> čija je vrednost niz
-          kompaktnih objekata (svaki u istom formatu kao za jednu uplatnicu):
+          Umesto jednog niza pošaljite niz nizova — svaki u istom obliku kao za jednu uplatnicu
+          (sa svojim tipom na početku). Sve uplatnice se kompresuju zajedno, pa svaka sledeća
+          dodaje svega 25–100 znakova:
         </p>
         <CodeBlock>{multiSlipJsExample}</CodeBlock>
-        <p className="text-xs text-gray-400 mt-3">
-          Link sa jednom uplatnicom ostaje u starom, "ravnom" obliku (bez <code>L</code>) —
-          format se ne menja za postojeće integracije.
-        </p>
       </Section>
 
       {/* Google Apps Script */}
@@ -181,9 +201,20 @@ const ApiDocs: React.FC = () => (
       {/* Generic example */}
       <Section icon={<Code2 size={22} />} title="Bilo koji jezik (JavaScript primer)">
         <p className="text-sm text-gray-600 mb-3">
-          Isti princip radi u bilo kom jeziku — napravite JSON, enkodirajte ga Base64URL, dodajte kao fragment:
+          Isti princip radi u bilo kom jeziku — napravite JSON niz, kompresujte ga, enkodirajte Base64URL
+          i dodajte kao fragment:
         </p>
         <CodeBlock>{jsExample}</CodeBlock>
+      </Section>
+
+      {/* Legacy v1 */}
+      <Section icon={<Link2 size={22} />} title="Stari format (v1)">
+        <p className="text-sm text-gray-600 mb-3">
+          Linkovi u starom formatu — Base64URL nekompresovanog JSON objekta sa skraćenim ključevima
+          (kolona „v1 ključ“) — i dalje rade i nastaviće da rade. Jednostavniji su za pravljenje,
+          ali su znatno duži, pa za nove integracije preporučujemo v2.
+        </p>
+        <CodeBlock>{legacyExample}</CodeBlock>
       </Section>
     </div>
 

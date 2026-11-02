@@ -1,19 +1,38 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Toaster, toast } from 'react-hot-toast';
 import JSZip from 'jszip';
 import PaymentSlip from '@/components/PaymentSlip';
 import Footer from '@/components/Footer';
 import OrderTabs from '@/components/OrderTabs';
-import { decodeSlipsData } from '@/utils/slipLink';
+import { decodeSlipsData, DecodedSlip } from '@/utils/slipLink';
 import { generateIPSString } from '@/utils/ipsGenerator';
 import { sanitizeFilename, captureSlipElementToPngBlob, downloadBlob } from '@/utils/downloadHelpers';
-import { AlertCircle, Download } from 'lucide-react';
+import { AlertCircle, Download, Loader2 } from 'lucide-react';
 
 const ShareView: React.FC = () => {
-  // The slip(s) live entirely in the URL fragment — decode it once, synchronously.
-  const orders = useMemo(() => decodeSlipsData(window.location.hash), []);
+  // The slip(s) live entirely in the URL fragment. Decoding v2 links means
+  // decompressing, which is async; `undefined` = still decoding, `null` = invalid.
+  const [orders, setOrders] = useState<DecodedSlip[] | null | undefined>(undefined);
   const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const decode = () => {
+      decodeSlipsData(window.location.hash).then((decoded) => {
+        if (cancelled) return;
+        setOrders(decoded);
+        setActiveIndex(0);
+      });
+    };
+    decode();
+    // Another link pasted into the address bar only changes the fragment.
+    window.addEventListener('hashchange', decode);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('hashchange', decode);
+    };
+  }, []);
   const activeOrder = orders?.[activeIndex] ?? null;
 
   const handleDownloadSingleSlip = async () => {
@@ -68,6 +87,14 @@ const ShareView: React.FC = () => {
 
   const handleDownloadPaymentSlip = () =>
     orders && orders.length > 1 ? handleDownloadAllSlips() : handleDownloadSingleSlip();
+
+  if (orders === undefined) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
 
   if (!orders || !activeOrder) {
     return (
