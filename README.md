@@ -81,11 +81,13 @@ Link je 25–45% kraći od starog formata za jednu uplatnicu, a 55–90% za viš
 Redosled polja (`V2_FIELD_ORDER`) i v1 ključevi su u [`src/utils/slipLink.ts`](src/utils/slipLink.ts) i na stranici `/api`.
 **Isti redosled postoji i u [`docs/apps-script-example.gs`](docs/apps-script-example.gs) — to je javni format: polja se ne preuređuju niti preimenuju, samo se dodaju na kraj**, inače postojeći linkovi i integracije prestaju da rade.
 
-Testovi za kodiranje linkova (Node 22.6+):
+Testovi za kodiranje linkova i QR kod (Node 22.6+):
 
 ```bash
 npm test
 ```
+
+**Zajednički test primeri** za format linka i NBS IPS QR string su u [`test-vectors/`](test-vectors/README.md). Druge implementacije (npr. .NET backend) testiraju se nad tim fajlovima, umesto da drže svoju kopiju očekivanih vrednosti. Posle namerne promene formata: `npm run test-vectors:write`.
 
 ## Struktura projekta
 
@@ -106,6 +108,8 @@ src/
   types/index.ts           PaymentData, FormType
 docs/
   apps-script-example.gs   primer pravljenja linka iz Google Apps Script-a
+scripts/                   testovi (npm test) i generisanje test primera
+test-vectors/              zajednički test primeri za link i QR (JSON)
 public/                    favicon-i, redirect pravila
 ```
 

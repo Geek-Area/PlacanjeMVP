@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --no-warnings scripts/slipLink.test.ts"
+    "test": "node --experimental-strip-types --no-warnings scripts/slipLink.test.ts && node --experimental-strip-types --no-warnings scripts/test-vectors.ts",
+    "test-vectors:write": "node --experimental-strip-types --no-warnings scripts/test-vectors.ts --write"
   },
   "dependencies": {
     "@vercel/analytics": "^1.6.1",
