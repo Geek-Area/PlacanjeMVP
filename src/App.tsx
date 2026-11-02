@@ -15,7 +15,18 @@ import {
 import PaymentSlip from "@/components/PaymentSlip";
 import Footer from "@/components/Footer";
 import OrderTabs from "@/components/OrderTabs";
+import AutofillInput, { AutofillSuggestion } from "@/components/AutofillInput";
 import { encodeSlipsData } from "@/utils/slipLink";
+import {
+  FieldHistory,
+  FieldHistoryKind,
+  loadFieldHistory,
+  saveFieldHistory,
+  rememberSlips,
+  receiverKey,
+  payerKey,
+  purposeKey,
+} from "@/utils/fieldHistory";
 import { sanitizeFilename, svgToPngBlob, captureSlipElementToPngBlob, downloadBlob } from "@/utils/downloadHelpers";
 import {
   CreditCard,
@@ -126,6 +137,105 @@ const App: React.FC = () => {
     localStorage.setItem('savedSlips', JSON.stringify(savedSlips));
   }, [savedSlips]);
 
+  // Autofill memory. On first use it is seeded from already saved slips, so
+  // existing users get suggestions right away.
+  const [fieldHistory, setFieldHistory] = useState<FieldHistory>(() => {
+    const history = loadFieldHistory();
+    const isEmpty = !history.receivers.length && !history.payers.length && !history.purposes.length;
+    return isEmpty && savedSlips.length > 0
+      ? rememberSlips(history, savedSlips.map((slip) => slip.data))
+      : history;
+  });
+
+  useEffect(() => {
+    saveFieldHistory(fieldHistory);
+  }, [fieldHistory]);
+
+  // Remember the details of finished (valid) slips for autofill.
+  const rememberValidOrders = (list: Order[] = orders) => {
+    const valid = list.filter((order) => getValidationStatus(order.data).isValid).map((order) => order.data);
+    if (valid.length > 0) setFieldHistory((prev) => rememberSlips(prev, valid));
+  };
+
+  const forgetSuggestion = (kind: FieldHistoryKind, key: string) => {
+    setFieldHistory((prev) => ({
+      ...prev,
+      receivers: kind === 'receivers' ? prev.receivers.filter((r) => receiverKey(r) !== key) : prev.receivers,
+      payers: kind === 'payers' ? prev.payers.filter((p) => payerKey(p) !== key) : prev.payers,
+      purposes: kind === 'purposes' ? prev.purposes.filter((p) => purposeKey(p) !== key) : prev.purposes,
+    }));
+  };
+
+  const formatAccountForDisplay = (account: string) =>
+    account.length === 18 ? `${account.slice(0, 3)}-${account.slice(3, 16)}-${account.slice(16)}` : account;
+
+  const receiverSuggestions: AutofillSuggestion[] = fieldHistory.receivers.map((r) => ({
+    key: receiverKey(r),
+    label: r.receiverName,
+    detail: [formatAccountForDisplay(r.receiverAccount), r.receiverCity].filter(Boolean).join(' · '),
+    search: `${r.receiverName} ${r.receiverAccount} ${r.receiverAddress} ${r.receiverCity}`,
+  }));
+
+  // On the account field the account itself is the headline.
+  const receiverAccountSuggestions: AutofillSuggestion[] = fieldHistory.receivers.map((r) => ({
+    key: receiverKey(r),
+    label: formatAccountForDisplay(r.receiverAccount),
+    detail: r.receiverName,
+    search: `${r.receiverAccount} ${r.receiverName}`,
+  }));
+
+  const payerSuggestions: AutofillSuggestion[] = fieldHistory.payers.map((p) => ({
+    key: payerKey(p),
+    label: p.payerName,
+    detail: [p.payerAddress, p.payerCity].filter(Boolean).join(', '),
+    search: `${p.payerName} ${p.payerAddress} ${p.payerCity} ${p.payerAccount}`,
+  }));
+
+  const payerAccountSuggestions: AutofillSuggestion[] = fieldHistory.payers
+    .filter((p) => p.payerAccount)
+    .map((p) => ({
+      key: payerKey(p),
+      label: formatAccountForDisplay(p.payerAccount),
+      detail: p.payerName,
+      search: `${p.payerAccount} ${p.payerName}`,
+    }));
+
+  const purposeSuggestions: AutofillSuggestion[] = fieldHistory.purposes.map((p) => ({
+    key: purposeKey(p),
+    label: p.purpose,
+    search: p.purpose,
+  }));
+
+  const pickReceiver = (key: string) => {
+    const receiver = fieldHistory.receivers.find((r) => receiverKey(r) === key);
+    if (!receiver) return;
+    setFormData((prev) => ({
+      ...prev,
+      receiverName: receiver.receiverName,
+      receiverAddress: receiver.receiverAddress,
+      receiverCity: receiver.receiverCity,
+      receiverAccount: receiver.receiverAccount,
+    }));
+  };
+
+  const pickPayer = (key: string) => {
+    const payer = fieldHistory.payers.find((p) => payerKey(p) === key);
+    if (!payer) return;
+    setFormData((prev) => ({
+      ...prev,
+      payerName: payer.payerName,
+      payerAddress: payer.payerAddress,
+      payerCity: payer.payerCity,
+      // Keep a typed payer account if the saved profile has none.
+      payerAccount: payer.payerAccount || prev.payerAccount,
+    }));
+  };
+
+  const pickPurpose = (key: string) => {
+    const entry = fieldHistory.purposes.find((p) => purposeKey(p) === key);
+    if (entry) setFormData((prev) => ({ ...prev, purpose: entry.purpose }));
+  };
+
   // Save current payment slip to history
   const handleSaveSlip = () => {
     const validation = getValidationStatus();
@@ -145,6 +255,7 @@ const App: React.FC = () => {
     };
 
     setSavedSlips((prev) => [newSlip, ...prev]);
+    rememberValidOrders([{ formType, data: formData }]);
     toast.success('Uplatnica sačuvana!', {
       duration: 2000,
       position: 'bottom-center',
@@ -425,6 +536,7 @@ const App: React.FC = () => {
   };
 
   const handleDownload = () => {
+    rememberValidOrders();
     if (orders.length > 1) {
       handleDownloadAllQr();
       return;
@@ -485,6 +597,7 @@ const App: React.FC = () => {
   };
 
   const handleDownloadPaymentSlip = async () => {
+    rememberValidOrders();
     if (orders.length > 1) {
       await handleDownloadAllSlips();
       return;
@@ -513,6 +626,7 @@ const App: React.FC = () => {
 
   const handleShare = async () => {
     if (!requireAllOrdersValid('deljenja')) return;
+    rememberValidOrders();
 
     // Stateless link: all slip data is encoded into the URL fragment — no server,
     // no database, no expiry. The fragment never reaches the server.
@@ -627,13 +741,15 @@ const App: React.FC = () => {
                   </div>
                   <label className={labelClass}>Uplatilac</label>
                   <div className="space-y-2">
-                    <input
+                    <AutofillInput
                       name="payerName"
                       value={formData.payerName}
                       onChange={handleInputChange}
                       className={inputClass}
                       placeholder="Ime i prezime / Naziv firme"
-                      autoComplete="section-payer name"
+                      suggestions={payerSuggestions}
+                      onPick={pickPayer}
+                      onRemove={(key) => forgetSuggestion('payers', key)}
                     />
                     <input
                       name="payerAddress"
@@ -657,13 +773,15 @@ const App: React.FC = () => {
                 {/* Svrha uplate */}
                 <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
                   <label className={labelClass}>Svrha uplate</label>
-                  <input
+                  <AutofillInput
                     name="purpose"
                     value={formData.purpose}
                     onChange={handleInputChange}
                     className={`${inputClass} h-20 resize-none`}
                     placeholder="Opis plaćanja (npr. Račun za struju 03/24)"
-                    autoComplete="off"
+                    suggestions={purposeSuggestions}
+                    onPick={pickPurpose}
+                    onRemove={(key) => forgetSuggestion('purposes', key)}
                   />
                 </div>
 
@@ -674,13 +792,15 @@ const App: React.FC = () => {
                   </div>
                   <label className={labelClass}>Primalac</label>
                   <div className="space-y-2">
-                    <input
+                    <AutofillInput
                       name="receiverName"
                       value={formData.receiverName}
                       onChange={handleInputChange}
                       className={inputClass}
                       placeholder="Naziv primaoca"
-                      autoComplete="section-receiver organization"
+                      suggestions={receiverSuggestions}
+                      onPick={pickReceiver}
+                      onRemove={(key) => forgetSuggestion('receivers', key)}
                     />
                     <input
                       name="receiverAddress"
@@ -749,32 +869,33 @@ const App: React.FC = () => {
                 {formType === 'prenos' && (
                   <div>
                     <label className={labelClass}>Račun uplatioca</label>
-                    <div className="relative">
+                    <AutofillInput
+                      name="payerAccount"
+                      type="text"
+                      inputMode="numeric"
+                      value={(() => {
+                        const acc = formData.payerAccount;
+                        if (!acc) return "";
+                        const c = acc.replace(/[^0-9]/g, "");
+                        if (c.length <= 3) return c;
+                        if (c.length <= 16) return `${c.slice(0, 3)}-${c.slice(3)}`;
+                        return `${c.slice(0, 3)}-${c.slice(3, 16)}-${c.slice(16)}`;
+                      })()}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^0-9]/g, "");
+                        setFormData((prev) => ({ ...prev, payerAccount: cleaned.substring(0, 18) }));
+                      }}
+                      onBlur={() => autoFormatAccountField('payerAccount')}
+                      className={`${inputClass} pl-10 pr-10 font-mono tracking-wide`}
+                      placeholder="XXX-XXXXXXXXXXXXXXX-XX"
+                      maxLength={21}
+                      suggestions={payerAccountSuggestions}
+                      onPick={pickPayer}
+                      onRemove={(key) => forgetSuggestion('payers', key)}
+                    >
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Wallet size={16} className="text-gray-400" />
                       </div>
-                      <input
-                        name="payerAccount"
-                        type="text"
-                        inputMode="numeric"
-                        value={(() => {
-                          const acc = formData.payerAccount;
-                          if (!acc) return "";
-                          const c = acc.replace(/[^0-9]/g, "");
-                          if (c.length <= 3) return c;
-                          if (c.length <= 16) return `${c.slice(0, 3)}-${c.slice(3)}`;
-                          return `${c.slice(0, 3)}-${c.slice(3, 16)}-${c.slice(16)}`;
-                        })()}
-                        onChange={(e) => {
-                          const cleaned = e.target.value.replace(/[^0-9]/g, "");
-                          setFormData((prev) => ({ ...prev, payerAccount: cleaned.substring(0, 18) }));
-                        }}
-                        onBlur={() => autoFormatAccountField('payerAccount')}
-                        className={`${inputClass} pl-10 pr-10 font-mono tracking-wide`}
-                        placeholder="XXX-XXXXXXXXXXXXXXX-XX"
-                        maxLength={21}
-                        autoComplete="on"
-                      />
                       {isFormattingAccount && (
                         <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                           <RefreshCw size={16} className="text-blue-600 animate-spin" />
@@ -785,7 +906,7 @@ const App: React.FC = () => {
                           <CheckCircle2 size={16} className="text-green-600" />
                         </div>
                       )}
-                    </div>
+                    </AutofillInput>
                     <p className="text-[10px] text-gray-400 mt-1">
                       Unesite račun sa ili bez crtica (18 cifara)
                     </p>
@@ -826,22 +947,23 @@ const App: React.FC = () => {
                 {/* Receiver Account Number */}
                 <div>
                   <label className={labelClass}>Račun primaoca</label>
-                  <div className="relative">
+                  <AutofillInput
+                    name="receiverAccount"
+                    type="text"
+                    inputMode="numeric"
+                    value={getFormattedAccountDisplay()}
+                    onChange={handleAccountChange}
+                    onBlur={() => autoFormatAccountField('receiverAccount')}
+                    className={`${inputClass} pl-10 pr-10 font-mono tracking-wide`}
+                    placeholder="XXX-XXXXXXXXXXXXXXX-XX"
+                    maxLength={21}
+                    suggestions={receiverAccountSuggestions}
+                    onPick={pickReceiver}
+                    onRemove={(key) => forgetSuggestion('receivers', key)}
+                  >
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Wallet size={16} className="text-gray-400" />
                     </div>
-                    <input
-                      name="receiverAccount"
-                      type="text"
-                      inputMode="numeric"
-                      value={getFormattedAccountDisplay()}
-                      onChange={handleAccountChange}
-                      onBlur={() => autoFormatAccountField('receiverAccount')}
-                      className={`${inputClass} pl-10 pr-10 font-mono tracking-wide`}
-                      placeholder="XXX-XXXXXXXXXXXXXXX-XX"
-                      maxLength={21}
-                      autoComplete="on"
-                    />
                     {isFormattingAccount && (
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                         <RefreshCw size={16} className="text-blue-600 animate-spin" />
@@ -852,7 +974,7 @@ const App: React.FC = () => {
                         <CheckCircle2 size={16} className="text-green-600" />
                       </div>
                     )}
-                  </div>
+                  </AutofillInput>
                   <p className="text-[10px] text-gray-400 mt-1">
                     Unesite račun sa ili bez crtica (18 cifara)
                   </p>
