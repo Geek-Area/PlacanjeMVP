@@ -1,4 +1,4 @@
-import { PaymentData } from '@/types';
+import type { PaymentData } from '@/types';
 
 const cyrillicToLatinMap: Record<string, string> = {
   'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'ђ': 'đ',
