@@ -17,6 +17,7 @@ import Footer from "@/components/Footer";
 import OrderTabs from "@/components/OrderTabs";
 import AutofillInput, { AutofillSuggestion } from "@/components/AutofillInput";
 import EmbedCodeDialog from "@/components/EmbedCodeDialog";
+import { PaymentCodeHint, PaymentCodeOptions } from "@/components/PaymentCodeHint";
 import { encodeSlipsData } from "@/utils/slipLink";
 import {
   FieldHistory,
@@ -864,8 +865,12 @@ const App: React.FC = () => {
                       onChange={handleInputChange}
                       className={`${inputClass} text-center font-mono`}
                       maxLength={3}
+                      inputMode="numeric"
+                      list="payment-code-options"
+                      aria-describedby="payment-code-hint"
                       autoComplete="off"
                     />
+                    <PaymentCodeOptions id="payment-code-options" />
                   </div>
                   <div className="col-span-3">
                     <label className={labelClass}>Valuta</label>
@@ -893,6 +898,7 @@ const App: React.FC = () => {
                       </span>
                     </div>
                   </div>
+                  <PaymentCodeHint code={formData.paymentCode} />
                 </div>
 
                 {/* Payer Account - only for Prenos */}

@@ -6,6 +6,7 @@ import App from '@/App';
 import ShareView from '@/components/ShareView';
 import EmbedView from '@/components/EmbedView';
 import ApiDocs from '@/components/ApiDocs';
+import PaymentCodesGuide from '@/components/PaymentCodesGuide';
 import '@/index.css';
 
 const rootElement = document.getElementById('root');
@@ -25,6 +26,7 @@ root.render(
         {/* Legacy path — old links have no fragment and render the "invalid link" state */}
         <Route path="/share/:shareId" element={<ShareView />} />
         <Route path="/api" element={<ApiDocs />} />
+        <Route path="/sifre-placanja" element={<PaymentCodesGuide />} />
       </Routes>
     </BrowserRouter>
     <Analytics />

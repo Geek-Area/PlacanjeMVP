@@ -20,7 +20,7 @@ const FIELDS: FieldRow[] = [
   { key: 'pu', name: 'purpose', required: false, note: 'Svrha plaćanja' },
   { key: 'mo', name: 'model', required: false, note: 'Model poziva na broj (npr. 97)' },
   { key: 're', name: 'reference', required: false, note: 'Poziv na broj (odobrenje)' },
-  { key: 'sf', name: 'paymentCode', required: false, note: 'Šifra plaćanja (prazno = 189)' },
+  { key: 'sf', name: 'paymentCode', required: false, note: 'Šifra plaćanja, tri cifre (prazno = 189); spisak: placanje.rs/sifre-placanja' },
   { key: 'ra', name: 'receiverAddress', required: false, note: 'Adresa primaoca' },
   { key: 'rc', name: 'receiverCity', required: false, note: 'Mesto primaoca' },
   { key: 'pn', name: 'payerName', required: false, note: 'Uplatilac' },
