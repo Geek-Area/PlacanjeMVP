@@ -88,6 +88,8 @@ const qrCases: { name: string; data: PaymentData }[] = [
   { name: 'required fields only', data: minimal.data },
   { name: 'receiver address and city, model 97 reference; payer is never included', data: typical.data },
   { name: 'Cyrillic is transliterated, non-default payment code and currency', data: cyrillicPrenos.data },
+  { name: 'cash payment code from a paper slip (153) becomes cashless SF:253', data: { ...minimal.data, paymentCode: '153' } },
+  { name: 'cashless payment code (253) is used as is', data: { ...minimal.data, paymentCode: '253' } },
   {
     name: 'typographic characters and the "|" separator are replaced',
     data: { ...minimal.data, receiverName: 'Firma „Navodnici“ — test', purpose: 'Uplata | rata… 1/2' },

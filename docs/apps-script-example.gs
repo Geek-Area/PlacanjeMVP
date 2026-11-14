@@ -16,8 +16,9 @@
  *
  * NAPOMENE:
  *  - amount je string; prihvata se "1234.56" ili "1.234,56".
- *  - paymentCode je osnovna šifra (npr. "189"); aplikacija dodaje +100 za QR
- *    po NBS standardu (189 -> 289). Prazno = 189.
+ *  - paymentCode je šifra plaćanja. Gotovinska šifra (1xx, npr. "189") u QR kodu
+ *    postaje bezgotovinska (+100, 189 -> 289); bezgotovinska (2xx, npr. "253")
+ *    ostaje ista. Prazno = 189.
  *  - Za model "97", reference mora sadržati i kontrolne cifre.
  *  - Link ne ističe i ne kreira nikakav zapis u bazi.
  *  - Stari (v1) linkovi, Base64URL nekompresovanog JSON-a sa skraćenim

@@ -65,7 +65,51 @@
         "debitModel": "97",
         "debitReference": "182026001"
       },
-      "qr": "K:PR|V:01|C:1|R:205000000012345678|N:Preduzeće Primer d.o.o.\nKneza Miloša 45\nBeograd|I:EUR187500,00|SF:321|S:Uplata po računu br. 2026-117|RO:97184512345678"
+      "qr": "K:PR|V:01|C:1|R:205000000012345678|N:Preduzeće Primer d.o.o.\nKneza Miloša 45\nBeograd|I:EUR187500,00|SF:221|S:Uplata po računu br. 2026-117|RO:97184512345678"
+    },
+    {
+      "name": "cash payment code from a paper slip (153) becomes cashless SF:253",
+      "data": {
+        "payerName": "",
+        "payerAddress": "",
+        "payerCity": "",
+        "payerAccount": "",
+        "purpose": "Racun 2026-001",
+        "receiverName": "Moja Firma d.o.o.",
+        "receiverAddress": "",
+        "receiverCity": "",
+        "receiverAccount": "160000000012345678",
+        "paymentCode": "153",
+        "currency": "RSD",
+        "amount": "1234.56",
+        "model": "",
+        "reference": "",
+        "debitModel": "",
+        "debitReference": ""
+      },
+      "qr": "K:PR|V:01|C:1|R:160000000012345678|N:Moja Firma d.o.o.|I:RSD1234,56|SF:253|S:Racun 2026-001"
+    },
+    {
+      "name": "cashless payment code (253) is used as is",
+      "data": {
+        "payerName": "",
+        "payerAddress": "",
+        "payerCity": "",
+        "payerAccount": "",
+        "purpose": "Racun 2026-001",
+        "receiverName": "Moja Firma d.o.o.",
+        "receiverAddress": "",
+        "receiverCity": "",
+        "receiverAccount": "160000000012345678",
+        "paymentCode": "253",
+        "currency": "RSD",
+        "amount": "1234.56",
+        "model": "",
+        "reference": "",
+        "debitModel": "",
+        "debitReference": ""
+      },
+      "qr": "K:PR|V:01|C:1|R:160000000012345678|N:Moja Firma d.o.o.|I:RSD1234,56|SF:253|S:Racun 2026-001"
     },
     {
       "name": "typographic characters and the \"|\" separator are replaced",

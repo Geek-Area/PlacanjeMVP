@@ -106,16 +106,13 @@ export const formatAmountForQR = (amount: string): string => {
   return `${integerPart},${decimalPart}`;
 };
 
+// The first digit of a payment code is the form of payment: 1 = cash, 2 = cashless.
+// An IPS QR payment is always cashless, so SF must start with 2. A cash code from a
+// paper slip (1xx, e.g. 189 or 153) becomes its cashless twin (289, 253); a code that
+// is already cashless (2xx, e.g. 253 or 221) is used as is.
 export const formatPaymentCode = (code: string): string => {
-  const originalCode = parseInt(code) || 189;
-  // NBS standard requires adding 100 to the code (e.g. 189 -> 289)
-  // If user enters 289 directly, we assume they know what they are doing, 
-  // but standard usually implies inputting base code. 
-  // However, specifically for the generator string SF:{code}, 
-  // if the input is standard '189', the output SF should be '289'.
-  // If user types '289', it becomes '389' which is wrong. 
-  // We will assume user inputs the standard code (189, 221, etc).
-  return (originalCode + 100).toString();
+  const originalCode = parseInt(code, 10) || 189;
+  return (originalCode < 200 ? originalCode + 100 : originalCode).toString();
 };
 
 // Validate a complete Model 97 reference number (check digits + reference body)
