@@ -17,7 +17,7 @@ import Footer from "@/components/Footer";
 import OrderTabs from "@/components/OrderTabs";
 import AutofillInput, { AutofillSuggestion } from "@/components/AutofillInput";
 import EmbedCodeDialog from "@/components/EmbedCodeDialog";
-import { PaymentCodeHint, PaymentCodeOptions } from "@/components/PaymentCodeHint";
+import { PaymentCodeHint, PaymentCodeInput } from "@/components/PaymentCodeHint";
 import { encodeSlipsData } from "@/utils/slipLink";
 import {
   FieldHistory,
@@ -859,18 +859,11 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-3">
                     <label className={labelClass}>Šifra</label>
-                    <input
-                      name="paymentCode"
+                    <PaymentCodeInput
                       value={formData.paymentCode}
-                      onChange={handleInputChange}
+                      onChange={(paymentCode) => setFormData((prev) => ({ ...prev, paymentCode }))}
                       className={`${inputClass} text-center font-mono`}
-                      maxLength={3}
-                      inputMode="numeric"
-                      list="payment-code-options"
-                      aria-describedby="payment-code-hint"
-                      autoComplete="off"
                     />
-                    <PaymentCodeOptions id="payment-code-options" />
                   </div>
                   <div className="col-span-3">
                     <label className={labelClass}>Valuta</label>
