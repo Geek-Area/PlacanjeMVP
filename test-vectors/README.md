@@ -30,7 +30,9 @@ The format is described on [placanje.rs/api](https://placanje.rs/api).
 is not valid for a QR code.
 
 Conventions these cases pin down:
-- `paymentCode` is the code printed on the slip (e.g. `189`); `SF` in the QR is that code + 100.
+- `paymentCode` is the code printed on the slip. An IPS payment is always cashless, so `SF` must start
+  with `2`: a cash code (`1xx`, e.g. `189`) gets + 100 (`289`), and a cashless code (`2xx`, e.g. `253`
+  or `221`) is written as is.
 - Payer fields are never written to the QR.
 - Cyrillic is transliterated to Latin, and typographic characters and `|` are replaced.
 - The receiver block (`N`) is cut to 70 characters and the purpose (`S`) to 35.
